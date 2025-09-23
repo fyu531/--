@@ -185,17 +185,11 @@ def manhattan_distance(x1, x2):
     
     return sum(abs(a - b) for a, b in zip(x1, x2))
 
+# majority_vote 函数
 def majority_vote(labels):
-    """多数投票决定最终标签"""
-    vote_counts = defaultdict(int)
-    for label in labels:
-        vote_counts[label] += 1
-    
-    max_count = max(vote_counts.values())
-    winners = [label for label, count in vote_counts.items() if count == max_count]
-    
-    # 如果有多个获胜者，随机选择一个
-    return random.choice(winners)
+    import numpy as np
+    counts = np.bincount(labels)
+    return np.argmax(counts)
 
 def entropy(labels):
     """计算熵"""
@@ -233,17 +227,17 @@ def gini_impurity(labels):
     
     return impurity
 
+# split_dataset 函数
 def split_dataset(features, labels, feature_idx, threshold):
-    X = np.array(features)
-    y = np.array(labels)
+    import numpy as np
+    features = np.array(features)
+    labels = np.array(labels)
     
-    # 布尔掩码，向量化操作
-    left_mask = X[:, feature_idx] < threshold
-    
-    left_features = X[left_mask]
-    left_labels = y[left_mask]
-    right_features = X[~left_mask]
-    right_labels = y[~left_mask]
+    mask = features[:, feature_idx] < threshold
+    left_features = features[mask].tolist()
+    left_labels = labels[mask].tolist()
+    right_features = features[~mask].tolist()
+    right_labels = labels[~mask].tolist()
     
     return left_features, left_labels, right_features, right_labels
 

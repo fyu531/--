@@ -1,6 +1,7 @@
 import math
 from collections import defaultdict
 from backend.utils import one_hot_encode
+import numpy as np
 
 class NaiveBayes:
     """朴素贝叶斯算法实现（适用于分类问题）"""
@@ -101,18 +102,31 @@ class NaiveBayes:
         if self.classes is None:
             return None
             
-        # 返回先验概率和部分条件概率用于可视化
+        # 转换类先验概率的键为Python类型
+        class_priors = {int(k) if isinstance(k, np.integer) else k: v 
+                    for k, v in self.class_priors.items()}
+        
         visualization_data = {
-            'class_priors': self.class_priors,
-            'feature_probs_sample': {}  # 只取部分特征概率，避免数据过大
+            'class_priors': class_priors,
+            'feature_probs_sample': {}
         }
         
         # 每个类别取前2个特征的概率分布
-        for cls in self.classes[:2]:  # 限制类别数量
-            for feature_idx in range(min(2, self.num_features)):  # 限制特征数量
+        for cls in self.classes[:2]:
+            # 确保类别是Python类型
+            cls_key = int(cls) if isinstance(cls, np.integer) else cls
+            
+            for feature_idx in range(min(2, self.num_features)):
+                # 确保特征索引是Python类型
+                idx_key = int(feature_idx) if isinstance(feature_idx, np.integer) else feature_idx
+                
                 if (cls, feature_idx) in self.feature_probs:
-                    # 只取前5个值的概率
-                    probs = list(self.feature_probs[(cls, feature_idx)].items())[:5]
-                    visualization_data['feature_probs_sample'][(cls, feature_idx)] = dict(probs)
+                    # 转换特征值为Python类型
+                    probs = [(int(k) if isinstance(k, np.integer) else k, v) 
+                            for k, v in self.feature_probs[(cls, feature_idx)].items()]
+                    
+                    # 将元组键转换为字符串，例如 "(0, 1)"
+                    tuple_key = f"({cls_key}, {idx_key})"
+                    visualization_data['feature_probs_sample'][tuple_key] = dict(probs[:5])
         
         return visualization_data

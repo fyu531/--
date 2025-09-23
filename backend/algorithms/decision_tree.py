@@ -2,6 +2,7 @@ import math
 import random
 from collections import defaultdict
 from backend.utils import entropy, gini_impurity, split_dataset, majority_vote
+import numpy as np
 
 class DecisionTreeNode:
     """决策树节点"""
@@ -78,13 +79,12 @@ class DecisionTree:
     def _build_tree(self, features, labels, depth=0):
         """递归构建决策树"""
         num_samples = len(features)
-        num_unique_labels = len(set(labels))
+        num_unique_labels = len(np.unique(labels))
         
-        # 终止条件
         if (depth >= self.max_depth or 
             num_samples < self.min_samples_split or 
             num_unique_labels == 1):
-            # 创建叶节点，值为多数标签
+            # 创建叶节点
             leaf_value = majority_vote(labels)
             return DecisionTreeNode(value=leaf_value)
         
@@ -115,6 +115,12 @@ class DecisionTree:
     
     def train(self, features, labels):
         """训练决策树"""
+        import numpy as np
+        
+        # 将 NumPy 数组转为 Python 列表
+        features = np.array(features).tolist()
+        labels = np.array(labels).ravel().tolist()
+        
         if len(features) == 0:
             raise ValueError("训练数据不能为空")
         if len(features) != len(labels):

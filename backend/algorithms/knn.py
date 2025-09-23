@@ -3,18 +3,16 @@ from collections import defaultdict
 from backend.utils import euclidean_distance, manhattan_distance, majority_vote
 
 class KNN:
-    """K最近邻分类器"""
-    def __init__(self, n_neighbors=5, distance_metric='euclidean'):
-        # 近邻数量
-        self.n_neighbors = n_neighbors
-        # 距离度量 ('euclidean' 或 'manhattan')
+    """K最近邻算法（支持分类和回归）"""
+    def __init__(self, k=5, distance_metric='euclidean', task_type='classification'):
+        self.k = k
         self.distance_metric = distance_metric
-        # 训练数据
+        self.task_type = task_type
         self.X_train = None
         self.y_train = None
     
     def fit(self, features, labels):
-        """训练KNN分类器（实际上只是存储数据）"""
+        """训练KNN模型（存储数据）"""
         if len(features) != len(labels):
             raise ValueError("特征和标签的数量必须相同")
         
@@ -23,6 +21,11 @@ class KNN:
         
         self.X_train = features
         self.y_train = labels
+    
+    # 新增train方法，兼容统一接口
+    def train(self, features, labels):
+        """为兼容统一接口，调用fit方法"""
+        self.fit(features, labels)
     
     def _calculate_distance(self, x1, x2):
         """计算两个样本之间的距离"""
@@ -36,22 +39,34 @@ class KNN:
     def _predict_sample(self, sample):
         """预测单个样本"""
         if self.X_train is None or self.y_train is None:
-            raise ValueError("KNN分类器尚未训练，请先调用fit方法")
+            raise ValueError("KNN模型尚未训练，请先调用fit方法")
         
-        # 计算与所有训练样本的距离
         distances = []
         for x, y in zip(self.X_train, self.y_train):
             dist = self._calculate_distance(sample, x)
             distances.append((dist, y))
         
-        # 按距离排序并选择最近的k个样本
         distances.sort()
-        neighbors = distances[:self.n_neighbors]
+        neighbors = distances[:self.k]
         neighbor_labels = [label for (dist, label) in neighbors]
         
-        # 多数投票决定预测结果
-        return majority_vote(neighbor_labels)
+        if self.task_type == 'classification':
+            return majority_vote(neighbor_labels)
+        else:  # regression
+            return sum(neighbor_labels) / len(neighbor_labels)
     
     def predict(self, features):
         """预测多个样本"""
         return [self._predict_sample(sample) for sample in features]
+    
+    def get_visualization_data(self):
+        """获取KNN可视化数据"""
+        if self.X_train is None:
+            return None
+            
+        return {
+            'k': self.k,
+            'distance_metric': self.distance_metric,
+            'task_type': self.task_type,
+            'train_samples_count': len(self.X_train)
+        }

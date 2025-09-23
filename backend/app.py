@@ -25,72 +25,96 @@ datasets = {
     'regression': None
 }
 
+# NumPy 类型转 Python 类型
+def convert_numpy_types(obj):
+    """递归将 NumPy 类型转换为 Python 原生类型"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        # 转换键和值
+        new_dict = {}
+        for k, v in obj.items():
+            new_k = int(k) if isinstance(k, np.integer) else k
+            new_dict[new_k] = convert_numpy_types(v)
+        return new_dict
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    else:
+        return obj
+
 # 加载所有数据集
 def load_all_datasets():
     """加载所有数据集到内存"""
     datasets['iris'] = load_iris()
-    # 后续调用时能正常解包
-    X, y, desc = datasets['iris']  # 无报错
-    print(desc['description'])     # 能正常打印数据集描述
+    X, y, desc = datasets['iris']
+    print(desc['description'])
 
     datasets['mnist'] = load_mnist_sample()
     datasets['regression'] = load_regression_sample()
 
-# 评估指标计算函数
 def calculate_metrics(y_true, y_pred, task_type='classification'):
-    """
-    计算评估指标
-    :param y_true: 真实标签
-    :param y_pred: 预测标签
-    :param task_type: 任务类型，'classification' 或 'regression'
-    :return: 评估指标字典
-    """
     metrics = {}
     
+    # 统一转换为numpy数组，并确保是一维
+    y_true = np.array(y_true).flatten()
+    y_pred = np.array(y_pred).flatten()
+    
+    # 确保数据类型为浮点数，便于计算
+    y_true = y_true.astype(np.float64)
+    y_pred = y_pred.astype(np.float64)
+    
+    # 检查形状是否匹配
+    if y_true.shape != y_pred.shape:
+        raise ValueError(f"真实值和预测值形状不匹配: {y_true.shape} vs {y_pred.shape}")
+    
+    # 无论分类还是回归都计算MSE
+    mse = np.mean((y_true - y_pred) **2)
+    metrics['mse'] = float(mse)
+    
     if task_type == 'classification':
-        # 分类任务指标
-        # 计算准确率
+        # 分类任务特有指标
         accuracy = np.mean(y_true == y_pred)
-        metrics['accuracy'] = accuracy
+        metrics['accuracy'] = float(accuracy)
         
-        # 计算精确率、召回率和F1分数（针对二分类）
         classes = np.unique(y_true)
-        if len(classes) == 2:
-            # 二分类
-            positive_class = classes[1]
-            
-            # 计算TP, TN, FP, FN
-            tp = np.sum((y_true == positive_class) & (y_pred == positive_class))
-            tn = np.sum((y_true != positive_class) & (y_pred != positive_class))
-            fp = np.sum((y_true != positive_class) & (y_pred == positive_class))
-            fn = np.sum((y_true == positive_class) & (y_pred != positive_class))
-            
-            # 精确率
-            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-            metrics['precision'] = precision
-            
-            # 召回率
-            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-            metrics['recall'] = recall
-            
-            # F1分数
-            f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-            metrics['f1'] = f1
-    else:
-        # 回归任务指标
-        # 均方误差
-        mse = np.mean((y_true - y_pred) **2)
-        metrics['mse'] = mse
+        precision_list = []
+        recall_list = []
+        f1_list = []
         
-        # 平均绝对误差
-        mae = np.mean(np.abs(y_true - y_pred))
-        metrics['mae'] = mae
+        for cls in classes:
+            tp = np.sum((y_true == cls) & (y_pred == cls))
+            fp = np.sum((y_true != cls) & (y_pred == cls))
+            fn = np.sum((y_true == cls) & (y_pred != cls))
+            
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+            
+            precision_list.append(float(precision))
+            recall_list.append(float(recall))
+            f1_list.append(float(f1))
         
-        # 决定系数R²
-        ss_total = np.sum((y_true - np.mean(y_true))** 2)
-        ss_residual = np.sum((y_true - y_pred) **2)
-        r2 = 1 - (ss_residual / ss_total) if ss_total > 0 else 0
-        metrics['r2'] = r2
+        metrics['precision'] = float(np.mean(precision_list))
+        metrics['recall'] = float(np.mean(recall_list))
+        metrics['f1'] = float(np.mean(f1_list))
+        
+    else:  # regression
+        # 回归任务特有指标
+        rmse = np.sqrt(mse)  # 均方根误差
+        metrics['rmse'] = float(rmse)
+        
+        mae = np.mean(np.abs(y_true - y_pred))  # 平均绝对误差
+        metrics['mae'] = float(mae)
+        
+        # 回归任务不计算分类指标
+        metrics['accuracy'] = None
+        metrics['precision'] = None
+        metrics['recall'] = None
+        metrics['f1'] = None
         
     return metrics
 
@@ -144,7 +168,6 @@ def get_dataset(dataset_id):
         
     X, y, desc = datasets[dataset_id]
     
-    # 返回部分样本用于可视化
     sample_size = min(100, len(X))
     indices = np.random.choice(len(X), sample_size, replace=False)
     
@@ -165,19 +188,15 @@ def train_model():
     algorithm_id = data['algorithm']
     dataset_id = data['dataset']
     
-    # 检查数据集是否存在
     if dataset_id not in datasets or datasets[dataset_id] is None:
         return jsonify({'error': '数据集不存在'}), 404
         
-    # 获取数据集
     X, y, _ = datasets[dataset_id]
     
-    # 分割训练集和测试集
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.3, random_state=42
     )
     
-    # 根据算法ID选择并初始化算法
     try:
         if algorithm_id == 'decision_tree':
             model = algos.DecisionTree(max_depth=5)
@@ -188,7 +207,6 @@ def train_model():
             task_type = 'classification'
             
         elif algorithm_id == 'knn':
-            # 根据数据集类型自动选择KNN的任务类型
             task_type = 'regression' if dataset_id == 'regression' else 'classification'
             model = algos.KNN(k=5, task_type=task_type)
             
@@ -213,12 +231,10 @@ def train_model():
             task_type = 'classification'
             
         elif algorithm_id == 'kmeans':
-            # 对于聚类算法，使用所有数据训练，且不需要真实标签
             model = algos.KMeans(k=len(np.unique(y)))
             task_type = 'clustering'
             
         elif algorithm_id == 'em':
-            # 对于EM算法，使用所有数据训练
             model = algos.EMAlgorithm(n_components=len(np.unique(y)))
             task_type = 'clustering'
             
@@ -228,13 +244,10 @@ def train_model():
     except Exception as e:
         return jsonify({'error': f'初始化算法失败: {str(e)}'}), 500
         
-    # 训练模型
     try:
         if task_type == 'clustering':
-            # 聚类算法不需要标签
             model.train(X)
             y_pred = model.predict(X_test)
-            # 聚类算法没有真实标签可比较，不计算传统指标
             metrics = {}
         else:
             model.train(X_train, y_train)
@@ -244,15 +257,19 @@ def train_model():
     except Exception as e:
         return jsonify({'error': f'训练模型失败: {str(e)}'}), 500
         
-    # 获取可视化数据
     visualization_data = model.get_visualization_data()
     
-    return jsonify({
+    response = {
         'algorithm': algorithm_id,
         'dataset': dataset_id,
         'metrics': metrics,
         'visualization': visualization_data
-    })
+    }
+    
+    # 转换所有 NumPy 类型
+    response = convert_numpy_types(response)
+    
+    return jsonify(response)
 
 # API端点：比较多个算法
 @app.route('/api/compare', methods=['POST'])
@@ -266,24 +283,19 @@ def compare_algorithms():
     dataset_id = data['dataset']
     metric = data['metric']
     
-    # 检查数据集是否存在
     if dataset_id not in datasets or datasets[dataset_id] is None:
         return jsonify({'error': '数据集不存在'}), 404
         
-    # 获取数据集
     X, y, _ = datasets[dataset_id]
     
-    # 分割训练集和测试集
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.3, random_state=42
     )
     
     results = {}
     
-    # 逐个训练算法并获取指定指标
     for algorithm_id in algorithm_ids:
         try:
-            # 根据算法ID选择并初始化算法
             if algorithm_id == 'decision_tree':
                 model = algos.DecisionTree(max_depth=5)
                 task_type = 'classification'
@@ -306,7 +318,6 @@ def compare_algorithms():
                 
             elif algorithm_id == 'linear_regression':
                 if dataset_id != 'regression':
-                    # 线性回归只适用于回归数据集
                     results[algorithm_id] = {'metric': None, 'error': '不适用于分类任务'}
                     continue
                 model = algos.LinearRegression()
@@ -332,7 +343,6 @@ def compare_algorithms():
                 results[algorithm_id] = {'metric': None, 'error': '算法不存在'}
                 continue
                 
-            # 训练模型
             if task_type == 'clustering':
                 model.train(X)
                 y_pred = model.predict(X_test)
@@ -342,18 +352,18 @@ def compare_algorithms():
                 y_pred = model.predict(X_test)
                 metrics = calculate_metrics(y_test, y_pred, task_type)
                 
-            # 获取指定指标
             metric_value = metrics.get(metric, None)
             results[algorithm_id] = {'metric': metric_value}
             
         except Exception as e:
             results[algorithm_id] = {'metric': None, 'error': str(e)}
+    
+    # 转换所有 NumPy 类型
+    results = convert_numpy_types(results)
             
     return jsonify({'results': results})
 
 # 启动应用
 if __name__ == '__main__':
-    # 加载数据集
     load_all_datasets()
-    # 启动Flask服务器
     app.run(debug=True)

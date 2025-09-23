@@ -24,15 +24,19 @@ class RandomForest:
         n_samples = X.shape[0]
         indices = np.random.choice(n_samples, n_samples, replace=True)
         return X[indices], y[indices]
-        
+    
+    # 确保train方法正确实现
     def train(self, X, y):
         """
         训练随机森林模型
         :param X: 特征数据
         :param y: 标签数据
         """
-        X = np.array(X)
-        y = np.array(y)
+        if not isinstance(X, np.ndarray):
+            X = np.array(X)
+        if not isinstance(y, np.ndarray):
+            y = np.array(y)
+            
         n_features = X.shape[1]
         
         # 确定每棵树使用的特征数量
@@ -47,9 +51,10 @@ class RandomForest:
         for _ in range(self.n_trees):
             # 随机选择特征
             feature_indices = np.random.choice(n_features, self.n_features, replace=False)
-            self.feature_indices_.append(feature_indices)
+            # 将numpy数组索引转换为Python列表，避免JSON序列化问题
+            self.feature_indices_.append([int(idx) for idx in feature_indices])
             
-            # 创建决策树 - 假设DecisionTree不接受n_features参数
+            # 创建决策树
             tree = DecisionTree(
                 max_depth=self.max_depth,
                 min_samples_split=self.min_samples_split
@@ -61,7 +66,7 @@ class RandomForest:
             # 只使用选中的特征
             X_sample_subset = X_sample[:, feature_indices]
             
-            # 训练决策树
+            # 训练决策树（确保DecisionTree类有train方法）
             tree.train(X_sample_subset, y_sample)
             
             # 添加到森林
@@ -98,21 +103,18 @@ class RandomForest:
         # 计算准确率
         accuracy = np.mean(y_pred == y)
         
-        # 计算其他指标可以在这里添加
-        
         return {
-            'accuracy': accuracy
-            # 可以添加其他指标如precision, recall等
+            'accuracy': float(accuracy)  # 确保转换为Python类型
         }
         
     def _most_common_label(self, y):
         """返回最常见的标签"""
-        # 处理可能的非整数标签
         unique, counts = np.unique(y, return_counts=True)
-        return unique[np.argmax(counts)]
+        # 确保返回Python原生类型而非numpy类型
+        return int(unique[np.argmax(counts)]) if isinstance(unique[0], np.integer) else unique[np.argmax(counts)]
         
     def get_visualization_data(self):
-        """获取随机森林可视化数据"""
+        """获取随机森林可视化数据，确保所有数据可JSON序列化"""
         if not self.trees:
             return None
             
@@ -121,11 +123,22 @@ class RandomForest:
         tree_data = []
         
         for i in range(sample_trees):
+            # 获取决策树的可视化数据
+            tree_vis = self.trees[i].get_visualization_data()
+            
+            # 确保特征重要性是Python类型
+            feature_importance = {}
+            if tree_vis and 'feature_importance' in tree_vis:
+                for k, v in tree_vis['feature_importance'].items():
+                    # 确保键是字符串或整数，值是Python浮点数
+                    key = int(k) if isinstance(k, np.integer) else k
+                    feature_importance[key] = float(v)
+            
             tree_data.append({
-                'depth': self.trees[i].get_depth(),
-                'node_count': self.trees[i].get_node_count(),
-                'feature_indices': self.feature_indices_[i].tolist(),
-                'feature_importance': self.trees[i].get_feature_importance()
+                'depth': int(tree_vis['depth']) if tree_vis and 'depth' in tree_vis else 0,
+                'node_count': int(tree_vis['node_count']) if tree_vis and 'node_count' in tree_vis else 0,
+                'feature_indices': self.feature_indices_[i],  # 已经转换为Python列表
+                'feature_importance': feature_importance
             })
             
         return {
@@ -134,4 +147,3 @@ class RandomForest:
             'max_depth': self.max_depth,
             'n_features': self.n_features
         }
-
