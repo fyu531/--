@@ -1,6 +1,7 @@
 import math
 import random
 from collections import defaultdict
+import numpy as np
 
 def train_test_split(data, test_size=0.3, random_state=None):
     """
@@ -233,17 +234,16 @@ def gini_impurity(labels):
     return impurity
 
 def split_dataset(features, labels, feature_idx, threshold):
-    """根据特征和阈值分割数据集"""
-    left_features, left_labels = [], []
-    right_features, right_labels = [], []
+    X = np.array(features)
+    y = np.array(labels)
     
-    for feature, label in zip(features, labels):
-        if feature[feature_idx] < threshold:
-            left_features.append(feature)
-            left_labels.append(label)
-        else:
-            right_features.append(feature)
-            right_labels.append(label)
+    # 布尔掩码，向量化操作
+    left_mask = X[:, feature_idx] < threshold
+    
+    left_features = X[left_mask]
+    left_labels = y[left_mask]
+    right_features = X[~left_mask]
+    right_labels = y[~left_mask]
     
     return left_features, left_labels, right_features, right_labels
 

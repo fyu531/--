@@ -228,14 +228,14 @@ function initDatasetViewer() {
     });
 }
 
-// 修改可视化函数调用
 async function visualizeDataset(datasetKey) {
     try {
         const response = await fetch(`${API_BASE_URL}/dataset/${datasetKey}`);
-        console.log('状态:',response.status);
-        console.log('响应:',response);
-        const text =await response.text();
-        console.log('响应内容',text);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP错误！状态: ${response.status}`);
+        }
+        
         const dataset = await response.json();
         
         const container = document.getElementById('datasetVisualization');
@@ -243,13 +243,18 @@ async function visualizeDataset(datasetKey) {
         
         const canvas = document.createElement('canvas');
         canvas.id = 'datasetCanvas';
-        canvas.width = container.offsetWidth;
-        canvas.height = container.offsetHeight;
+        
+        // 关键：设置最小尺寸或根据容器尺寸设置
+        const containerWidth = container.offsetWidth || 800;
+        const containerHeight = container.offsetHeight || 600;
+        canvas.width = containerWidth;
+        canvas.height = containerHeight;
+        
         container.appendChild(canvas);
         
         const ctx = canvas.getContext('2d');
         
-        // 传入真实数据
+        // 根据数据集类型调用相应的绘制函数
         switch (datasetKey) {
             case 'iris':
                 drawIrisDataset(ctx, canvas.width, canvas.height, dataset);
@@ -261,6 +266,32 @@ async function visualizeDataset(datasetKey) {
                 drawRegressionDataset(ctx, canvas.width, canvas.height, dataset);
                 break;
         }
+        
+        // 可选：窗口大小变化时重新绘制
+        function handleResize() {
+            const w = container.offsetWidth || 800;
+            const h = container.offsetHeight || 600;
+            canvas.width = w;
+            canvas.height = h;
+            
+            // 重新绘制
+            switch (datasetKey) {
+                case 'iris':
+                    drawIrisDataset(ctx, w, h, dataset);
+                    break;
+                case 'mnist':
+                    drawMNISTDataset(ctx, w, h, dataset);
+                    break;
+                case 'regression':
+                    drawRegressionDataset(ctx, w, h, dataset);
+                    break;
+            }
+        }
+        
+        window.addEventListener('resize', handleResize);
+        // 保存清理函数，避免重复绑定
+        canvas._onResize = handleResize;
+        
     } catch (error) {
         console.error('可视化数据集失败:', error);
         alert('获取数据集失败，请重试。');
@@ -565,7 +596,6 @@ function initCanvases() {
     });
 }
 
-// 运行算法（与后端交互）
 async function runAlgorithm(algoKey, datasetKey) {
     try {
         // 显示加载状态
@@ -574,6 +604,8 @@ async function runAlgorithm(algoKey, datasetKey) {
         document.getElementById('recall').textContent = '加载中...';
         document.getElementById('f1').textContent = '加载中...';
         document.getElementById('mse').textContent = '加载中...';
+        
+        console.log(`开始运行算法: ${algoKey}, 数据集: ${datasetKey}`);
         
         // 发送请求到后端
         const response = await fetch(`${API_BASE_URL}/train`, {
@@ -587,10 +619,32 @@ async function runAlgorithm(algoKey, datasetKey) {
             })
         });
         
-        const result = await response.json();
+        // 打印HTTP响应状态
+        console.log(`服务器响应状态: ${response.status} ${response.statusText}`);
         
+        // 解析响应内容
+        let result;
+        try {
+            result = await response.json();
+            console.log('服务器返回数据:', result); // 打印完整返回数据
+        } catch (jsonError) {
+            console.error('解析JSON响应失败:', jsonError);
+            console.error('原始响应内容:', await response.text()); // 打印原始响应文本
+            alert('服务器返回格式错误，请检查后端日志');
+            return;
+        }
+        
+        // 检查业务逻辑错误
         if (result.error) {
+            console.error(`业务错误: ${result.error}`);
             alert(`错误: ${result.error}`);
+            return;
+        }
+        
+        // 验证必要字段是否存在
+        if (!result.metrics) {
+            console.error('服务器返回数据缺少metrics字段', result);
+            alert('算法运行结果格式不正确');
             return;
         }
         
@@ -603,12 +657,25 @@ async function runAlgorithm(algoKey, datasetKey) {
         
         // 更新算法可视化，加入结果
         drawAlgorithmResults(algoKey, datasetKey, result.metrics, result.visualization);
+        console.log(`算法${algoKey}运行成功`);
         
     } catch (error) {
-        console.error('运行算法失败:', error);
-        alert('运行算法失败，请重试。');
+        // 捕获所有其他错误
+        console.error('运行算法时发生异常:', error);
+        
+        // 更详细的错误类型判断
+        if (error.name === 'TypeError') {
+            console.error('类型错误 - 可能是未定义的变量或方法');
+        } else if (error.name === 'SyntaxError') {
+            console.error('语法错误 - 可能是JSON解析问题');
+        } else if (error.message.includes('Failed to fetch')) {
+            console.error('网络请求失败 - 可能是服务器未启动或跨域问题');
+        }
+        
+        alert(`运行算法失败: ${error.message}\n请查看控制台获取详细信息`);
     }
 }
+
 
 // 绘制算法结果可视化
 function drawAlgorithmResults(algoKey, datasetKey, metrics, visualizationData) {
@@ -646,9 +713,35 @@ function drawAlgorithmResults(algoKey, datasetKey, metrics, visualizationData) {
     if (visualizationData) {
         // 例如，对于决策树，可以绘制树结构
         if (algoKey === 'decision_tree') {
-            drawTreeVisualization(ctx, canvas.width, canvas.height, visualizationData);
+            drawTreeVisualization(ctx, canvas.width, canvas.height);
         }
-        // 其他算法的可视化处理...
+        else if (algoKey === 'kmeans') {
+            drawKMeansResults(ctx, canvas.width, canvas.height);
+        }
+        else if (algoKey === 'knn') {
+            drawKNN(ctx, canvas.width, canvas.height);
+        }
+        else if (algoKey === 'adaboost') {
+            drawAdaBoost(ctx, canvas.width, canvas.height);
+        }
+        else if (algoKey === 'em') {
+            drawEM(ctx, canvas.width, canvas.height);
+        }
+        else if (algoKey === 'linear_regression') {
+            drawLinearRegression(ctx, canvas.width, canvas.height);
+        }
+        else if (algoKey === 'logistic_regression') {
+            drawLogisticRegression(ctx, canvas.width, canvas.height);
+        }
+        else if (algoKey === 'random_forest') {
+            drawRandomForest(ctx, canvas.width, canvas.height);
+        }
+        else if (algoKey === 'naive_bayes') {
+            drawNaiveBayes(ctx, canvas.width, canvas.height);
+        }
+        else if (algoKey === 'svm') {
+            drawSVM(ctx, canvas.width, canvas.height, visualizationData);
+        }
     }
 }
 
@@ -1307,31 +1400,31 @@ function drawEM(ctx, width, height) {
     ctx.fillText('渐变色点: 属于两个分布的概率', 50, 100);
 }
 
-// 工具函数：绘制节点
-function drawNode(ctx, x, y, width, height, text) {
-    ctx.fillStyle = 'white';
-    ctx.fillRect(x - width / 2, y - height / 2, width, height);
+// // 工具函数：绘制节点
+// function drawNode(ctx, x, y, width, height, text) {
+//     ctx.fillStyle = 'white';
+//     ctx.fillRect(x - width / 2, y - height / 2, width, height);
     
-    ctx.strokeStyle = 'black';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+//     ctx.strokeStyle = 'black';
+//     ctx.lineWidth = 1;
+//     ctx.strokeRect(x - width / 2, y - height / 2, width, height);
     
-    ctx.fillStyle = 'black';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, x, y);
-}
+//     ctx.fillStyle = 'black';
+//     ctx.font = '12px Arial';
+//     ctx.textAlign = 'center';
+//     ctx.textBaseline = 'middle';
+//     ctx.fillText(text, x, y);
+// }
 
-// 工具函数：绘制直线
-function drawLine(ctx, x1, y1, x2, y2) {
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.strokeStyle = 'black';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-}
+// // 工具函数：绘制直线
+// function drawLine(ctx, x1, y1, x2, y2) {
+//     ctx.beginPath();
+//     ctx.moveTo(x1, y1);
+//     ctx.lineTo(x2, y2);
+//     ctx.strokeStyle = 'black';
+//     ctx.lineWidth = 1;
+//     ctx.stroke();
+// }
 
 // 工具函数：绘制带箭头的直线
 function drawLineWithArrow(ctx, x1, y1, x2, y2) {
@@ -1362,18 +1455,24 @@ function drawLineWithArrow(ctx, x1, y1, x2, y2) {
 
 // 绘制数据集可视化
 
-// 绘制鸢尾花数据集
-function drawIrisDataset(ctx, width, height) {
-    // 生成模拟的鸢尾花数据点（基于花瓣长度和宽度）
-    const classes = [
-        { name: '山鸢尾', color: 'red', count: 50, xRange: [1, 2], yRange: [0.1, 0.6] },
-        { name: '变色鸢尾', color: 'green', count: 50, xRange: [3, 5], yRange: [1, 1.8] },
-        { name: '维吉尼亚鸢尾', color: 'blue', count: 50, xRange: [4.5, 6.9], yRange: [1.4, 2.5] }
-    ];
-    
+function drawIrisDataset(ctx, width, height, dataset) {
     const margin = 50;
     const plotWidth = width - 2 * margin;
     const plotHeight = height - 2 * margin;
+    
+    // 提取数据
+    const samples = dataset.samples;  // 形状: [n, 4]
+    const labels = dataset.labels;    // 形状: [n]
+    
+    // 提取花瓣长度(第2列)和花瓣宽度(第3列)
+    const xData = samples.map(s => s[2]);
+    const yData = samples.map(s => s[3]);
+    
+    // 计算最大最小值用于归一化
+    const xMin = Math.min(...xData);
+    const xMax = Math.max(...xData);
+    const yMin = Math.min(...yData);
+    const yMax = Math.max(...yData);
     
     // 绘制坐标轴
     ctx.beginPath();
@@ -1396,42 +1495,46 @@ function drawIrisDataset(ctx, width, height) {
     ctx.restore();
     
     // 绘制数据点
-    classes.forEach(cls => {
-        for (let i = 0; i < cls.count; i++) {
-            // 生成随机点
-            const x = margin + (Math.random() * (cls.xRange[1] - cls.xRange[0]) + cls.xRange[0]) / 7 * plotWidth;
-            const y = height - margin - (Math.random() * (cls.yRange[1] - cls.yRange[0]) + cls.yRange[0]) / 3 * plotHeight;
-            
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, Math.PI * 2);
-            ctx.fillStyle = cls.color;
-            ctx.fill();
-        }
+    const colors = ['red', 'green', 'blue'];
+    samples.forEach((sample, i) => {
+        const x = margin + (sample[2] - xMin) / (xMax - xMin) * plotWidth;
+        const y = height - margin - (sample[3] - yMin) / (yMax - yMin) * plotHeight;
         
-        // 绘制图例
         ctx.beginPath();
-        ctx.arc(width - margin - 150, margin + 30 + classes.indexOf(cls) * 30, 5, 0, Math.PI * 2);
-        ctx.fillStyle = cls.color;
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = colors[labels[i]];
+        ctx.fill();
+    });
+    
+    // 绘制图例
+    const classNames = ['山鸢尾', '变色鸢尾', '维吉尼亚鸢尾'];
+    classNames.forEach((name, i) => {
+        ctx.beginPath();
+        ctx.arc(width - margin - 150, margin + 30 + i * 30, 5, 0, Math.PI * 2);
+        ctx.fillStyle = colors[i];
         ctx.fill();
         
         ctx.fillStyle = '#333';
         ctx.font = '12px Arial';
         ctx.textAlign = 'left';
-        ctx.fillText(cls.name, width - margin - 140, margin + 34 + classes.indexOf(cls) * 30);
+        ctx.fillText(name, width - margin - 140, margin + 34 + i * 30);
     });
 }
 
-// 绘制MNIST数据集
-function drawMNISTDataset(ctx, width, height) {
-    // 绘制几个示例数字
-    const digits = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+function drawMNISTDataset(ctx, width, height, dataset) {
+    const samples = dataset.samples;  // 形状: [n, 784]
+    const labels = dataset.labels;    // 形状: [n]
+    
     const digitSize = 50;
     const padding = 20;
     const cols = 5;
     
-    digits.forEach((digit, index) => {
-        const col = index % cols;
-        const row = Math.floor(index / cols);
+    // 只显示前10个样本
+    const displayCount = Math.min(10, samples.length);
+    
+    for (let i = 0; i < displayCount; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
         
         const x = padding + col * (digitSize + padding);
         const y = padding + row * (digitSize + padding);
@@ -1445,17 +1548,39 @@ function drawMNISTDataset(ctx, width, height) {
         ctx.fillStyle = '#333';
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(digit, x + digitSize / 2, y + digitSize + 20);
+        ctx.fillText(labels[i], x + digitSize / 2, y + digitSize + 20);
         
-        // 绘制简化的数字图像
-        drawDigit(ctx, x, y, digitSize, digit);
-    });
+        // 绘制真实的手写数字
+        drawMNISTDigit(ctx, x, y, digitSize, samples[i]);
+    }
     
     // 绘制标题
     ctx.fillStyle = '#333';
     ctx.font = '16px Arial bold';
     ctx.textAlign = 'center';
     ctx.fillText('MNIST手写数字样本', width / 2, padding);
+}
+
+// 绘制真实MNIST数字
+function drawMNISTDigit(ctx, x, y, size, pixelData) {
+    const canvas = ctx.canvas;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = size;
+    tempCanvas.height = size;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    const imageData = tempCtx.createImageData(size, size);
+    for (let i = 0; i < pixelData.length; i++) {
+        const idx = i * 4;
+        const value = 255 - pixelData[i]; // 反转颜色
+        imageData.data[idx] = value;     // R
+        imageData.data[idx + 1] = value; // G
+        imageData.data[idx + 2] = value; // B
+        imageData.data[idx + 3] = 255;   // A
+    }
+    
+    tempCtx.putImageData(imageData, 0, 0);
+    ctx.drawImage(tempCanvas, x, y);
 }
 
 // 绘制单个数字（简化版）
@@ -1547,23 +1672,23 @@ function drawDigit(ctx, x, y, size, digit) {
     }
 }
 
-// 绘制回归数据集
-function drawRegressionDataset(ctx, width, height) {
-    // 生成模拟的回归数据点
-    const points = [];
-    const numPoints = 50;
+function drawRegressionDataset(ctx, width, height, dataset) {
     const margin = 50;
     const plotWidth = width - 2 * margin;
     const plotHeight = height - 2 * margin;
     
-    for (let i = 0; i < numPoints; i++) {
-        const x = margin + (i / (numPoints - 1)) * plotWidth;
-        // 生成大致符合y = 0.5x² + 噪声的非线性关系
-        const baseY = 50 + 0.0001 * Math.pow(i - 25, 3) + (Math.random() * 40 - 20);
-        const y = height - margin - (baseY / 100) * plotHeight;
-        
-        points.push({x, y});
-    }
+    const samples = dataset.samples;  // 形状: [n, 1]
+    const labels = dataset.labels;    // 形状: [n]
+    
+    // 提取数据
+    const xData = samples.map(s => s[0]);
+    const yData = labels;
+    
+    // 计算最大最小值用于归一化
+    const xMin = Math.min(...xData);
+    const xMax = Math.max(...xData);
+    const yMin = Math.min(...yData);
+    const yMax = Math.max(...yData);
     
     // 绘制坐标轴
     ctx.beginPath();
@@ -1586,38 +1711,24 @@ function drawRegressionDataset(ctx, width, height) {
     ctx.restore();
     
     // 绘制数据点
-    points.forEach(point => {
+    const points = [];
+    samples.forEach((sample, i) => {
+        const x = margin + (sample[0] - xMin) / (xMax - xMin) * plotWidth;
+        const y = height - margin - (labels[i] - yMin) / (yMax - yMin) * plotHeight;
+        
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
         ctx.fillStyle = 'blue';
         ctx.fill();
+        
+        points.push({ x, y });
     });
-    
-    // 绘制趋势线
-    ctx.beginPath();
-    points.forEach((point, index) => {
-        if (index === 0) {
-            ctx.moveTo(point.x, point.y);
-        } else {
-            // 使用二次贝塞尔曲线平滑连接点
-            const nextPoint = points[index + 1] || point;
-            const controlPoint = {
-                x: (point.x + nextPoint.x) / 2,
-                y: (point.y + nextPoint.y) / 2
-            };
-            ctx.quadraticCurveTo(point.x, point.y, controlPoint.x, controlPoint.y);
-        }
-    });
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 2;
-    ctx.stroke();
     
     // 绘制说明
     ctx.fillStyle = '#333';
     ctx.font = '14px Arial';
     ctx.textAlign = 'left';
     ctx.fillText('蓝色点: 数据点', margin, margin - 10);
-    ctx.fillText('红色线: 潜在趋势', margin + 150, margin - 10);
 }
 
 // 工具函数：绘制节点

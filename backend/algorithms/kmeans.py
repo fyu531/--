@@ -40,15 +40,34 @@ class KMeans:
         return clusters
         
     def _update_centroids(self, X, clusters):
-        """根据聚类结果更新聚类中心"""
-        n_features = X.shape[1]
+        n_samples, n_features = X.shape
         centroids = np.zeros((self.k, n_features))
+        empty_clusters = []
         
         for i, cluster in enumerate(clusters):
-            if cluster:  # 避免空聚类
-                cluster_samples = X[cluster]
-                centroids[i] = np.mean(cluster_samples, axis=0)
+            if cluster:
+                centroids[i] = np.mean(X[cluster], axis=0)
+            else:
+                empty_clusters.append(i)
                 
+        # 处理空聚类：从所有样本中重新随机选择中心
+        if empty_clusters:
+            used_indices = set()
+            for cluster in clusters:
+                used_indices.update(cluster)
+                
+            unused_indices = list(set(range(n_samples)) - used_indices)
+            if unused_indices:
+                # 从未被选中的样本中随机选择
+                new_centroid_indices = random.sample(unused_indices, len(empty_clusters))
+                for i, idx in zip(empty_clusters, new_centroid_indices):
+                    centroids[i] = X[idx]
+            else:
+                # 所有样本都已被使用，从整个数据集随机选择
+                new_centroid_indices = random.sample(range(n_samples), len(empty_clusters))
+                for i, idx in zip(empty_clusters, new_centroid_indices):
+                    centroids[i] = X[idx]
+                    
         return centroids
         
     def _is_converged(self, old_centroids, new_centroids, tolerance=1e-4):
@@ -102,12 +121,25 @@ class KMeans:
         return np.array(predictions)
         
     def get_visualization_data(self):
-        """获取KMeans可视化数据"""
-        if self.centroids is None:
+        if self.centroids is None or self.clusters is None:
             return None
-            
+        
+        # 计算总样本数量（从聚类结果反推）
+        total_samples = sum(len(cluster) for cluster in self.clusters)
+        
+        # 创建与样本数量匹配的标签数组
+        labels = np.zeros(total_samples, dtype=int)
+        
+        # 为每个样本分配聚类标签
+        for cluster_idx, sample_indices in enumerate(self.clusters):
+            for sample_idx in sample_indices:
+                # 确保样本索引在有效范围内
+                if sample_idx < total_samples:
+                    labels[sample_idx] = cluster_idx
+                
         return {
             'k': self.k,
             'centroids': self.centroids.tolist(),
-            'cluster_sizes': [len(cluster) for cluster in self.clusters] if self.clusters else None
+            'labels': labels.tolist(),  # 每个样本的聚类标签
+            'cluster_sizes': [len(cluster) for cluster in self.clusters]
         }
