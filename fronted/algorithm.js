@@ -1,0 +1,1674 @@
+// 后端API地址
+const API_BASE_URL = 'http://localhost:5000/api';
+
+// 算法描述数据
+const algorithmDescriptions = {
+    decision_tree: {
+        title: "决策树算法",
+        description: "决策树是一种树形结构，其中每个内部节点表示一个属性上的判断，每个分支代表一个判断结果的输出，每个叶节点代表一种分类结果。决策树易于理解和解释，可以处理数值型和类别型数据，不需要预处理数据。适用于分类和回归任务，但容易过拟合。"
+    },
+    naive_bayes: {
+        title: "朴素贝叶斯算法",
+        description: "朴素贝叶斯算法基于贝叶斯定理和特征条件独立性假设。它通过计算后验概率来进行分类，计算简单且高效。尽管'朴素'地假设特征之间相互独立，但在实际应用中表现良好，特别适用于文本分类、垃圾邮件过滤等场景。"
+    },
+    knn: {
+        title: "K最近邻算法 (KNN)",
+        description: "KNN是一种基于实例的学习算法，它通过计算新样本与训练集中所有样本的距离，选取最近的K个样本，根据这K个样本的多数类别（分类）或平均值（回归）来预测新样本的类别或值。KNN简单直观，但计算复杂度高，对异常值和噪声敏感。"
+    },
+    svm: {
+        title: "支持向量机 (SVM)",
+        description: "SVM通过寻找一个最优超平面来实现分类，这个超平面能最大化两类样本之间的间隔。对于非线性问题，SVM使用核函数将数据映射到高维空间，从而可以在高维空间中找到线性分离超平面。SVM在小样本、高维空间中表现良好，但计算复杂度高，对参数和核函数选择敏感。"
+    },
+    random_forest: {
+        title: "随机森林",
+        description: "随机森林是一种集成学习方法，它构建多个决策树，并通过投票（分类）或平均（回归）来确定最终结果。通过引入随机性（随机选择样本和特征），随机森林可以有效避免过拟合，提高模型的泛化能力。随机森林性能优异，鲁棒性强，但模型解释性较差。"
+    },
+    linear_regression: {
+        title: "线性回归",
+        description: "线性回归用于建立自变量与因变量之间的线性关系模型，通过最小化预测值与实际值之间的平方误差来求解模型参数。线性回归简单易解释，但只能捕捉线性关系，对非线性数据拟合效果差。适用于预测连续值的回归任务。"
+    },
+    logistic_regression: {
+        title: "逻辑回归",
+        description: "逻辑回归虽然名为回归，但实际上是一种分类算法。它通过Sigmoid函数将线性回归的输出映射到[0,1]区间，得到样本属于某一类别的概率。逻辑回归实现简单，解释性强，适用于二分类问题，但表达能力有限，难以处理复杂的非线性关系。"
+    },
+    adaboost: {
+        title: "AdaBoost算法",
+        description: "AdaBoost是一种集成学习方法，它通过迭代的方式训练多个弱分类器，并根据每个分类器的性能分配不同的权重，最后将这些弱分类器加权组合成一个强分类器。AdaBoost对噪声敏感，但在许多实际问题上表现出色，实现简单且不易过拟合。"
+    },
+    kmeans: {
+        title: "K均值聚类",
+        description: "K均值聚类是一种无监督学习算法，它将数据集划分为K个簇，使得同一簇内的数据点相似度高，不同簇的数据点相似度低。算法通过迭代更新簇中心来优化聚类结果。K均值聚类简单高效，但需要预先指定K值，对初始簇中心敏感，且对非凸形状的簇聚类效果较差。"
+    },
+    em: {
+        title: "EM算法 (期望最大化算法)",
+        description: "EM算法是一种用于含有隐变量模型的参数估计方法，由期望步（E步）和最大化步（M步）交替组成。E步计算隐变量的后验概率，M步基于E步的结果更新模型参数。EM算法广泛应用于混合模型、因子分析等场景，但容易陷入局部最优，收敛速度可能较慢。"
+    }
+};
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化算法和数据集选择器
+    initSelectors();
+    
+    // 初始化算法概览卡片
+    initAlgorithmGrid();
+    
+    // 初始化算法选择事件
+    initAlgorithmSelection();
+    
+    // 初始化数据集查看事件
+    initDatasetViewer();
+    
+    // 初始化比较图表
+    initComparisonChart();
+    
+    // 初始化报告生成功能
+    initReportGeneration();
+    
+    // 初始化画布上下文
+    initCanvases();
+});
+
+// 初始化算法和数据集选择器
+async function initSelectors() {
+    try {
+        // 获取算法列表
+        const algorithmsResponse = await fetch(`${API_BASE_URL}/algorithms`);
+        const algorithmsData = await algorithmsResponse.json();
+        
+        // 填充算法选择器
+        const algorithmSelect = document.getElementById('algorithmSelect');
+        algorithmsData.algorithms.forEach(algo => {
+            const option = document.createElement('option');
+            option.value = algo.id;
+            option.textContent = algo.name;
+            algorithmSelect.appendChild(option);
+        });
+        
+        // 获取数据集列表
+        const datasetsResponse = await fetch(`${API_BASE_URL}/datasets`);
+        const datasetsData = await datasetsResponse.json();
+        
+        // 填充数据集选择器
+        const datasetSelect = document.getElementById('datasetSelect');
+        datasetsData.datasets.forEach(dataset => {
+            const option = document.createElement('option');
+            option.value = dataset.id;
+            option.textContent = dataset.name;
+            datasetSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('初始化选择器失败:', error);
+        alert('无法连接到服务器，请确保后端服务已启动。');
+    }
+}
+
+// 初始化算法概览卡片
+function initAlgorithmGrid() {
+    const grid = document.getElementById('algorithmGrid');
+    
+    // 清空网格
+    grid.innerHTML = '';
+    
+    // 为每个算法创建卡片
+    for (const [key, algo] of Object.entries(algorithmDescriptions)) {
+        const card = document.createElement('div');
+        card.className = 'algorithm-card';
+        card.dataset.algorithm = key;
+        
+        card.innerHTML = `
+            <h3>${algo.title}</h3>
+            <p>${algo.description.substring(0, 100)}...</p>
+        `;
+        
+        // 添加点击事件
+        card.addEventListener('click', function() {
+            document.getElementById('algorithmSelect').value = key;
+            showAlgorithmDetails(key);
+            // 滚动到算法详情部分
+            document.getElementById('algorithms').scrollIntoView({ behavior: 'smooth' });
+        });
+        
+        grid.appendChild(card);
+    }
+}
+
+// 初始化算法选择事件
+function initAlgorithmSelection() {
+    const algorithmSelect = document.getElementById('algorithmSelect');
+    const runButton = document.getElementById('runAlgorithm');
+    
+    algorithmSelect.addEventListener('change', function() {
+        const algoKey = this.value;
+        if (algoKey) {
+            showAlgorithmDetails(algoKey);
+        }
+    });
+    
+    runButton.addEventListener('click', async function() {
+        const algoKey = document.getElementById('algorithmSelect').value;
+        const datasetKey = document.getElementById('datasetSelect').value;
+        
+        if (algoKey && datasetKey) {
+            await runAlgorithm(algoKey, datasetKey);
+        } else {
+            alert('请先选择算法和数据集');
+        }
+    });
+}
+
+// 显示算法详情
+function showAlgorithmDetails(algoKey) {
+    const algo = algorithmDescriptions[algoKey];
+    if (algo) {
+        document.getElementById('algorithmTitle').textContent = algo.title;
+        document.getElementById('algorithmDescription').textContent = algo.description;
+        
+        // 绘制算法示意图
+        drawAlgorithmDiagram(algoKey);
+    }
+}
+
+// 绘制算法示意图
+function drawAlgorithmDiagram(algoKey) {
+    const canvas = document.getElementById('algorithmVisualization');
+    const ctx = canvas.getContext('2d');
+    
+    // 清除画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 设置画布尺寸
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    
+    // 根据不同算法绘制不同的示意图
+    switch (algoKey) {
+        case 'decision_tree':
+            drawDecisionTree(ctx, canvas.width, canvas.height);
+            break;
+        case 'naive_bayes':
+            drawNaiveBayes(ctx, canvas.width, canvas.height);
+            break;
+        case 'knn':
+            drawKNN(ctx, canvas.width, canvas.height);
+            break;
+        case 'svm':
+            drawSVM(ctx, canvas.width, canvas.height);
+            break;
+        case 'random_forest':
+            drawRandomForest(ctx, canvas.width, canvas.height);
+            break;
+        case 'linear_regression':
+            drawLinearRegression(ctx, canvas.width, canvas.height);
+            break;
+        case 'logistic_regression':
+            drawLogisticRegression(ctx, canvas.width, canvas.height);
+            break;
+        case 'adaboost':
+            drawAdaBoost(ctx, canvas.width, canvas.height);
+            break;
+        case 'kmeans':
+            drawKMeans(ctx, canvas.width, canvas.height);
+            break;
+        case 'em':
+            drawEM(ctx, canvas.width, canvas.height);
+            break;
+    }
+}
+
+// 初始化数据集查看事件
+function initDatasetViewer() {
+    const datasetButtons = document.querySelectorAll('.view-dataset');
+    
+    datasetButtons.forEach(button => {
+        button.addEventListener('click', async function() {
+            const datasetKey = this.closest('.dataset-card').dataset.dataset;
+            await visualizeDataset(datasetKey);
+        });
+    });
+}
+
+// 修改可视化函数调用
+async function visualizeDataset(datasetKey) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/dataset/${datasetKey}`);
+        console.log('状态:',response.status);
+        console.log('响应:',response);
+        const text =await response.text();
+        console.log('响应内容',text);
+        const dataset = await response.json();
+        
+        const container = document.getElementById('datasetVisualization');
+        container.innerHTML = '';
+        
+        const canvas = document.createElement('canvas');
+        canvas.id = 'datasetCanvas';
+        canvas.width = container.offsetWidth;
+        canvas.height = container.offsetHeight;
+        container.appendChild(canvas);
+        
+        const ctx = canvas.getContext('2d');
+        
+        // 传入真实数据
+        switch (datasetKey) {
+            case 'iris':
+                drawIrisDataset(ctx, canvas.width, canvas.height, dataset);
+                break;
+            case 'mnist':
+                drawMNISTDataset(ctx, canvas.width, canvas.height, dataset);
+                break;
+            case 'regression':
+                drawRegressionDataset(ctx, canvas.width, canvas.height, dataset);
+                break;
+        }
+    } catch (error) {
+        console.error('可视化数据集失败:', error);
+        alert('获取数据集失败，请重试。');
+    }
+}
+
+// 初始化比较图表
+function initComparisonChart() {
+    const updateButton = document.getElementById('updateComparison');
+    
+    updateButton.addEventListener('click', async function() {
+        const dataset = document.getElementById('comparisonDataset').value;
+        const metric = document.getElementById('comparisonMetric').value;
+        await updateComparisonChart(dataset, metric);
+    });
+    
+    // 初始加载
+    updateComparisonChart('iris', 'accuracy');
+}
+
+// 更新比较图表
+async function updateComparisonChart(dataset, metric) {
+    try {
+        // 获取所有算法
+        const algorithmsResponse = await fetch(`${API_BASE_URL}/algorithms`);
+        const algorithmsData = await algorithmsResponse.json();
+        const algorithmIds = algorithmsData.algorithms.map(algo => algo.id);
+        
+        // 请求比较结果
+        const response = await fetch(`${API_BASE_URL}/compare`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                algorithms: algorithmIds,
+                dataset: dataset,
+                metric: metric
+            })
+        });
+        
+        const comparisonData = await response.json();
+        
+        const canvas = document.getElementById('comparisonChart');
+        const ctx = canvas.getContext('2d');
+        
+        // 设置画布尺寸
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        
+        // 清除画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 绘制比较图表
+        const results = comparisonData.results;
+        
+        // 过滤掉值为null的数据
+        const filteredData = {};
+        for (const [algo, data] of Object.entries(results)) {
+            if (data.metric !== null && !isNaN(data.metric)) {
+                filteredData[algo] = data;
+            }
+        }
+        
+        // 绘制柱状图
+        const algorithms = Object.keys(filteredData);
+        const values = algorithms.map(algo => filteredData[algo].metric);
+        const numBars = algorithms.length;
+        
+        if (numBars === 0) {
+            ctx.fillStyle = '#333';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('所选指标不适用于该数据集的任何算法', canvas.width / 2, canvas.height / 2);
+            return;
+        }
+        
+        const barWidth = canvas.width * 0.6 / numBars;
+        const barSpacing = canvas.width * 0.3 / (numBars + 1);
+        const startX = canvas.width * 0.15 + barSpacing;
+        const maxValue = Math.max(...values) * 1.1;
+        const barHeightScale = canvas.height * 0.7 / maxValue;
+        const startY = canvas.height * 0.85;
+        
+        // 绘制坐标轴
+        ctx.beginPath();
+        ctx.moveTo(canvas.width * 0.1, startY);
+        ctx.lineTo(canvas.width * 0.9, startY);
+        ctx.lineTo(canvas.width * 0.88, startY - 5);
+        ctx.moveTo(canvas.width * 0.9, startY);
+        ctx.lineTo(canvas.width * 0.88, startY + 5);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(canvas.width * 0.1, startY);
+        ctx.lineTo(canvas.width * 0.1, canvas.height * 0.15);
+        ctx.lineTo(canvas.width * 0.08, canvas.height * 0.17);
+        ctx.moveTo(canvas.width * 0.1, canvas.height * 0.15);
+        ctx.lineTo(canvas.width * 0.12, canvas.height * 0.17);
+        ctx.stroke();
+        
+        // 绘制刻度和标签
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 5; i++) {
+            const y = startY - (i * maxValue / 5) * barHeightScale;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width * 0.1 - 5, y);
+            ctx.lineTo(canvas.width * 0.1, y);
+            ctx.stroke();
+            
+            ctx.fillText((i * maxValue / 5).toFixed(2), canvas.width * 0.08, y + 4);
+        }
+        
+        // 绘制柱状图
+        algorithms.forEach((algo, index) => {
+            const value = filteredData[algo].metric;
+            const barHeight = value * barHeightScale;
+            const x = startX + index * (barWidth + barSpacing);
+            const y = startY - barHeight;
+            
+            // 随机颜色
+            const color = `hsl(${index * 360 / numBars}, 70%, 60%)`;
+            
+            // 绘制柱子
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, barWidth, barHeight);
+            
+            // 绘制柱子边框
+            ctx.strokeStyle = '#333';
+            ctx.strokeRect(x, y, barWidth, barHeight);
+            
+            // 绘制值标签
+            ctx.fillStyle = '#333';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(value.toFixed(4), x + barWidth / 2, y - 10);
+            
+            // 绘制算法名称标签
+            ctx.fillText(algorithmDescriptions[algo]?.title.substring(0, 6) + '...', 
+                        x + barWidth / 2, startY + 20);
+        });
+        
+        // 绘制图表标题
+        ctx.font = '16px Arial bold';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${metricToLabel(metric)}比较 (${datasetToLabel(dataset)})`, 
+                    canvas.width / 2, canvas.height * 0.1);
+    } catch (error) {
+        console.error('更新比较图表失败:', error);
+        alert('更新比较图表失败，请重试。');
+    }
+}
+
+// 指标名称转换
+function metricToLabel(metric) {
+    const labels = {
+        accuracy: '准确率',
+        precision: '精确率',
+        recall: '召回率',
+        f1: 'F1分数',
+        mse: '均方误差'
+    };
+    return labels[metric] || metric;
+}
+
+// 数据集名称转换
+function datasetToLabel(dataset) {
+    const labels = {
+        iris: '鸢尾花数据集',
+        mnist: 'MNIST样本',
+        regression: '回归样本'
+    };
+    return labels[dataset] || dataset;
+}
+
+// 初始化报告生成功能
+function initReportGeneration() {
+    const generateButton = document.getElementById('generateReport');
+    
+    generateButton.addEventListener('click', async function() {
+        await generateExperimentReport();
+    });
+}
+
+// 生成实验报告
+async function generateExperimentReport() {
+    try {
+        // 获取所有算法和数据集的比较结果
+        const algorithmsResponse = await fetch(`${API_BASE_URL}/algorithms`);
+        const algorithmsData = await algorithmsResponse.json();
+        const algorithmIds = algorithmsData.algorithms.map(algo => algo.id);
+        
+        // 分别获取三个数据集上的比较结果
+        const metrics = ['accuracy', 'mse'];
+        const datasets = ['iris', 'mnist', 'regression'];
+        const comparisonResults = {};
+        
+        for (const dataset of datasets) {
+            const metric = dataset === 'regression' ? 'mse' : 'accuracy';
+            const response = await fetch(`${API_BASE_URL}/compare`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    algorithms: algorithmIds,
+                    dataset: dataset,
+                    metric: metric
+                })
+            });
+            
+            comparisonResults[dataset] = await response.json();
+        }
+        
+        // 生成报告内容
+        let reportContent = `<h3>机器学习算法性能比较实验报告</h3>`;
+        
+        // 鸢尾花数据集结果
+        const irisResults = comparisonResults.iris.results;
+        const topIris = Object.entries(irisResults)
+            .filter(([_, data]) => data.metric !== null)
+            .sort(([_, a], [__, b]) => b.metric - a.metric)
+            .slice(0, 3);
+        
+        reportContent += `<h4>1. 鸢尾花数据集（分类任务）</h4>`;
+        reportContent += `<p>在鸢尾花数据集上，表现最佳的三个算法分别是：</p>`;
+        reportContent += `<ul>`;
+        topIris.forEach(([algoId, data], index) => {
+            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId].title}：准确率 ${data.metric.toFixed(4)}</li>`;
+        });
+        reportContent += `</ul>`;
+        
+        // MNIST数据集结果
+        const mnistResults = comparisonResults.mnist.results;
+        const topMnist = Object.entries(mnistResults)
+            .filter(([_, data]) => data.metric !== null)
+            .sort(([_, a], [__, b]) => b.metric - a.metric)
+            .slice(0, 3);
+        
+        reportContent += `<h4>2. MNIST样本数据集（图像分类任务）</h4>`;
+        reportContent += `<p>在MNIST样本数据集上，表现最佳的三个算法分别是：</p>`;
+        reportContent += `<ul>`;
+        topMnist.forEach(([algoId, data], index) => {
+            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId].title}：准确率 ${data.metric.toFixed(4)}</li>`;
+        });
+        reportContent += `</ul>`;
+        
+        // 回归数据集结果
+        const regressionResults = comparisonResults.regression.results;
+        const topRegression = Object.entries(regressionResults)
+            .filter(([_, data]) => data.metric !== null)
+            .sort(([_, a], [__, b]) => a.metric - b.metric)
+            .slice(0, 3);
+        
+        reportContent += `<h4>3. 回归样本数据集（回归任务）</h4>`;
+        reportContent += `<p>在回归样本数据集上，表现最佳的三个算法分别是（均方误差越小越好）：</p>`;
+        reportContent += `<ul>`;
+        topRegression.forEach(([algoId, data], index) => {
+            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId].title}：均方误差 ${data.metric.toFixed(4)}</li>`;
+        });
+        reportContent += `</ul>`;
+        
+        // 总结
+        reportContent += `<h4>4. 总结</h4>`;
+        reportContent += `<p>实验结果表明，不同的机器学习算法在不同类型的任务和数据集上表现各有优劣。</p>`;
+        reportContent += `<p>对于分类任务，SVM和随机森林通常表现较好；对于回归任务，随机森林和线性回归是不错的选择。</p>`;
+        reportContent += `<p>在实际应用中，应根据具体问题类型、数据集特点和计算资源等因素选择合适的算法。</p>`;
+        
+        document.getElementById('experimentResults').innerHTML = reportContent;
+        
+    } catch (error) {
+        console.error('生成实验报告失败:', error);
+        alert('生成实验报告失败，请重试。');
+    }
+}
+
+// 初始化画布上下文
+function initCanvases() {
+    const canvases = document.querySelectorAll('canvas');
+    canvases.forEach(canvas => {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+    });
+    
+    // 窗口大小改变时重新设置画布尺寸
+    window.addEventListener('resize', function() {
+        canvases.forEach(canvas => {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        });
+        
+        // 重新绘制当前显示的图表
+        const selectedAlgo = document.getElementById('algorithmSelect').value;
+        if (selectedAlgo) {
+            drawAlgorithmDiagram(selectedAlgo);
+        }
+        
+        const dataset = document.getElementById('comparisonDataset').value;
+        const metric = document.getElementById('comparisonMetric').value;
+        updateComparisonChart(dataset, metric);
+    });
+}
+
+// 运行算法（与后端交互）
+async function runAlgorithm(algoKey, datasetKey) {
+    try {
+        // 显示加载状态
+        document.getElementById('accuracy').textContent = '加载中...';
+        document.getElementById('precision').textContent = '加载中...';
+        document.getElementById('recall').textContent = '加载中...';
+        document.getElementById('f1').textContent = '加载中...';
+        document.getElementById('mse').textContent = '加载中...';
+        
+        // 发送请求到后端
+        const response = await fetch(`${API_BASE_URL}/train`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                algorithm: algoKey,
+                dataset: datasetKey
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.error) {
+            alert(`错误: ${result.error}`);
+            return;
+        }
+        
+        // 更新性能指标显示
+        document.getElementById('accuracy').textContent = result.metrics.accuracy !== undefined ? result.metrics.accuracy.toFixed(4) : '--';
+        document.getElementById('precision').textContent = result.metrics.precision !== undefined ? result.metrics.precision.toFixed(4) : '--';
+        document.getElementById('recall').textContent = result.metrics.recall !== undefined ? result.metrics.recall.toFixed(4) : '--';
+        document.getElementById('f1').textContent = result.metrics.f1 !== undefined ? result.metrics.f1.toFixed(4) : '--';
+        document.getElementById('mse').textContent = result.metrics.mse !== undefined ? result.metrics.mse.toFixed(4) : '--';
+        
+        // 更新算法可视化，加入结果
+        drawAlgorithmResults(algoKey, datasetKey, result.metrics, result.visualization);
+        
+    } catch (error) {
+        console.error('运行算法失败:', error);
+        alert('运行算法失败，请重试。');
+    }
+}
+
+// 绘制算法结果可视化
+function drawAlgorithmResults(algoKey, datasetKey, metrics, visualizationData) {
+    // 首先绘制算法基本示意图
+    drawAlgorithmDiagram(algoKey);
+    
+    const canvas = document.getElementById('algorithmVisualization');
+    const ctx = canvas.getContext('2d');
+    
+    // 在图表上方绘制性能指标
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial bold';
+    ctx.textAlign = 'center';
+    ctx.fillText('算法性能结果', canvas.width / 2, 30);
+    
+    // 绘制性能指标卡片
+    const metricsList = [];
+    if (metrics.accuracy !== undefined) metricsList.push(`准确率: ${metrics.accuracy.toFixed(4)}`);
+    if (metrics.precision !== undefined) metricsList.push(`精确率: ${metrics.precision.toFixed(4)}`);
+    if (metrics.recall !== undefined) metricsList.push(`召回率: ${metrics.recall.toFixed(4)}`);
+    if (metrics.f1 !== undefined) metricsList.push(`F1分数: ${metrics.f1.toFixed(4)}`);
+    if (metrics.mse !== undefined) metricsList.push(`均方误差: ${metrics.mse.toFixed(4)}`);
+    
+    metricsList.forEach((metric, index) => {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillRect(canvas.width - 200, 50 + index * 30, 180, 25);
+        
+        ctx.fillStyle = '#333';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(metric, canvas.width - 190, 68 + index * 30);
+    });
+    
+    // 如果有算法特定的可视化数据，在这里处理
+    if (visualizationData) {
+        // 例如，对于决策树，可以绘制树结构
+        if (algoKey === 'decision_tree') {
+            drawTreeVisualization(ctx, canvas.width, canvas.height, visualizationData);
+        }
+        // 其他算法的可视化处理...
+    }
+}
+
+// 以下是各种算法的可视化绘制函数和数据集可视化函数
+// 这些函数与前面提供的版本类似，但增加了对实际数据的处理
+// 为简洁起见，这里省略具体实现，实际使用时需要完整实现
+
+// 绘制决策树
+// 绘制决策树
+function drawDecisionTree(ctx, width, height) {
+    // 绘制根节点
+    drawNode(ctx, width / 2, 50, 100, 40, "特征A > 5?");
+    
+    // 绘制左子树
+    drawLine(ctx, width / 2, 70, width / 3, 120);
+    drawNode(ctx, width / 3, 150, 80, 40, "是");
+    drawLine(ctx, width / 3, 170, width / 4, 220);
+    drawNode(ctx, width / 4, 250, 80, 40, "类别1");
+    
+    // 绘制右子树
+    drawLine(ctx, width / 2, 70, 2 * width / 3, 120);
+    drawNode(ctx, 2 * width / 3, 150, 80, 40, "否");
+    drawLine(ctx, 2 * width / 3, 170, 3 * width / 4, 220);
+    drawNode(ctx, 3 * width / 4, 250, 80, 40, "类别2");
+}
+
+// 绘制朴素贝叶斯
+function drawNaiveBayes(ctx, width, height) {
+    // 绘制贝叶斯公式
+    ctx.fillStyle = '#333';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText("P(A|B) = P(B|A) * P(A) / P(B)", width / 2, height / 3);
+    
+    // 绘制文本说明
+    ctx.font = '14px Arial';
+    ctx.fillText("后验概率 = 似然度 * 先验概率 / 证据", width / 2, height / 3 + 30);
+    
+    // 绘制特征独立性示意图
+    const features = ["特征1", "特征2", "特征3", "特征4"];
+    const centerX = width / 2;
+    const centerY = height * 2 / 3;
+    const radius = 80;
+    
+    // 绘制中心节点（类别）
+    drawNode(ctx, centerX, centerY, 80, 40, "类别");
+    
+    // 绘制特征节点
+    features.forEach((feature, i) => {
+        const angle = (i / features.length) * Math.PI * 2;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        
+        drawNode(ctx, x, y, 70, 35, feature);
+        drawLine(ctx, centerX, centerY, x, y);
+    });
+}
+
+// 绘制KNN
+function drawKNN(ctx, width, height) {
+    // 绘制数据点
+    const points = [];
+    const numPoints = 30;
+    
+    // 生成两类数据点
+    for (let i = 0; i < numPoints; i++) {
+        points.push({
+            x: 150 + Math.random() * 150,
+            y: 150 + Math.random() * 150,
+            type: 0, // 类别0
+            isNeighbor: false
+        });
+        
+        points.push({
+            x: 350 + Math.random() * 150,
+            y: 300 + Math.random() * 150,
+            type: 1, // 类别1
+            isNeighbor: false
+        });
+    }
+    
+    // 新数据点
+    const newPoint = {
+        x: width / 2,
+        y: height / 2,
+        type: -1, // 未知类别
+        isNeighbor: false
+    };
+    points.push(newPoint);
+    
+    // 计算与新点的距离并找出最近的5个点
+    points.forEach(point => {
+        if (point.type !== -1) {
+            point.distance = Math.sqrt(
+                Math.pow(point.x - newPoint.x, 2) + 
+                Math.pow(point.y - newPoint.y, 2)
+            );
+        }
+    });
+    
+    // 排序并标记最近的5个点
+    const sortedPoints = points.filter(p => p.type !== -1).sort((a, b) => a.distance - b.distance);
+    for (let i = 0; i < 5; i++) {
+        sortedPoints[i].isNeighbor = true;
+    }
+    
+    // 绘制所有点
+    points.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, point.type === -1 ? 8 : 5, 0, Math.PI * 2);
+        
+        if (point.type === -1) {
+            // 新点
+            ctx.fillStyle = 'purple';
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        } else if (point.type === 0) {
+            // 类别0
+            ctx.fillStyle = 'blue';
+            ctx.fill();
+        } else {
+            // 类别1
+            ctx.fillStyle = 'red';
+            ctx.fill();
+        }
+        
+        // 标记最近邻点
+        if (point.isNeighbor) {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
+            ctx.strokeStyle = 'green';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    });
+    
+    // 绘制新点到最近邻点的连线
+    sortedPoints.slice(0, 5).forEach(point => {
+        ctx.beginPath();
+        ctx.moveTo(newPoint.x, newPoint.y);
+        ctx.lineTo(point.x, point.y);
+        ctx.strokeStyle = 'green';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+    
+    // 绘制说明文本
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('紫色: 待分类点', 50, 50);
+    ctx.fillText('蓝色: 类别0', 50, 75);
+    ctx.fillText('红色: 类别1', 50, 100);
+    ctx.fillText('绿色标记: 最近的5个邻居', 50, 125);
+}
+
+// 绘制SVM
+function drawSVM(ctx, width, height) {
+    // 生成两类数据点
+    const points = [];
+    const numPoints = 20;
+    
+    // 类别A（上半部分）
+    for (let i = 0; i < numPoints; i++) {
+        points.push({
+            x: 150 + Math.random() * 300,
+            y: 300 + Math.random() * 100,
+            type: 0
+        });
+    }
+    
+    // 类别B（下半部分）
+    for (let i = 0; i < numPoints; i++) {
+        points.push({
+            x: 150 + Math.random() * 300,
+            y: 100 + Math.random() * 100,
+            type: 1
+        });
+    }
+    
+    // 绘制数据点
+    points.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = point.type === 0 ? 'blue' : 'red';
+        ctx.fill();
+    });
+    
+    // 绘制最优超平面（一条直线）
+    ctx.beginPath();
+    ctx.moveTo(150, 200);
+    ctx.lineTo(450, 200);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 绘制间隔边界
+    ctx.beginPath();
+    ctx.moveTo(150, 150);
+    ctx.lineTo(450, 150);
+    ctx.strokeStyle = 'gray';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.moveTo(150, 250);
+    ctx.lineTo(450, 250);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // 标记支持向量
+    points.forEach(point => {
+        if ((point.y > 140 && point.y < 160) || (point.y > 240 && point.y < 260)) {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
+            ctx.strokeStyle = 'green';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    });
+    
+    // 绘制说明文本
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('蓝色: 类别A', 50, 50);
+    ctx.fillText('红色: 类别B', 50, 75);
+    ctx.fillText('黑色实线: 最优超平面', 50, 100);
+    ctx.fillText('灰色虚线: 间隔边界', 50, 125);
+    ctx.fillText('绿色标记: 支持向量', 50, 150);
+}
+
+// 绘制随机森林
+function drawRandomForest(ctx, width, height) {
+    // 绘制多棵决策树
+    const treePositions = [
+        {x: width * 0.2, y: height * 0.3},
+        {x: width * 0.5, y: height * 0.2},
+        {x: width * 0.8, y: height * 0.35}
+    ];
+    
+    treePositions.forEach(pos => {
+        // 绘制简单的树结构
+        drawNode(ctx, pos.x, pos.y, 60, 30, "特征");
+        
+        // 左分支
+        drawLine(ctx, pos.x, pos.y + 15, pos.x - 30, pos.y + 50);
+        drawNode(ctx, pos.x - 30, pos.y + 70, 50, 25, "是");
+        
+        // 右分支
+        drawLine(ctx, pos.x, pos.y + 15, pos.x + 30, pos.y + 50);
+        drawNode(ctx, pos.x + 30, pos.y + 70, 50, 25, "否");
+    });
+    
+    // 绘制合并结果
+    const mergeX = width / 2;
+    const mergeY = height * 0.7;
+    drawNode(ctx, mergeX, mergeY, 100, 40, "投票/平均");
+    
+    // 绘制最终结果
+    drawLine(ctx, mergeX, mergeY + 20, mergeX, mergeY + 60);
+    drawNode(ctx, mergeX, mergeY + 80, 80, 35, "最终结果");
+    
+    // 连接树到合并节点
+    treePositions.forEach(pos => {
+        drawLine(ctx, pos.x, pos.y + 85, mergeX, mergeY - 20);
+    });
+    
+    // 绘制说明文本
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('多棵决策树', width / 2, 30);
+}
+
+// 绘制线性回归
+function drawLinearRegression(ctx, width, height) {
+    // 生成随机数据点
+    const points = [];
+    const numPoints = 30;
+    
+    for (let i = 0; i < numPoints; i++) {
+        const x = 100 + Math.random() * (width - 200);
+        // 生成大致符合y = 0.5x + 50的点，加入随机噪声
+        const y = height - (50 + 0.3 * (x - 100) + (Math.random() * 80 - 40));
+        points.push({x, y});
+    }
+    
+    // 绘制数据点
+    points.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = 'blue';
+        ctx.fill();
+    });
+    
+    // 绘制回归线 (y = 0.5x + 50)
+    const x1 = 100;
+    const y1 = height - (50 + 0.3 * (x1 - 100));
+    const x2 = width - 100;
+    const y2 = height - (50 + 0.3 * (x2 - 100));
+    
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 绘制几条残差线
+    const samplePoints = points.slice(0, 5);
+    samplePoints.forEach(point => {
+        // 计算点在回归线上的投影
+        const regressionY = height - (50 + 0.3 * (point.x - 100));
+        
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+        ctx.lineTo(point.x, regressionY);
+        ctx.strokeStyle = 'green';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    
+    // 绘制公式
+    ctx.fillStyle = '#333';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('y = wx + b', 50, 50);
+    
+    // 绘制说明文本
+    ctx.font = '14px Arial';
+    ctx.fillText('蓝色点: 数据点', 50, 80);
+    ctx.fillText('红色线: 回归线', 50, 105);
+    ctx.fillText('绿色虚线: 残差', 50, 130);
+}
+
+// 绘制逻辑回归
+function drawLogisticRegression(ctx, width, height) {
+    // 生成两类数据点
+    const points = [];
+    const numPoints = 20;
+    
+    // 类别0
+    for (let i = 0; i < numPoints; i++) {
+        points.push({
+            x: 100 + Math.random() * 150,
+            y: 100 + Math.random() * 200,
+            type: 0
+        });
+    }
+    
+    // 类别1
+    for (let i = 0; i < numPoints; i++) {
+        points.push({
+            x: 300 + Math.random() * 150,
+            y: 100 + Math.random() * 200,
+            type: 1
+        });
+    }
+    
+    // 绘制数据点
+    points.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = point.type === 0 ? 'blue' : 'red';
+        ctx.fill();
+    });
+    
+    // 绘制决策边界
+    ctx.beginPath();
+    ctx.moveTo(250, 100);
+    ctx.lineTo(250, 300);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 绘制Sigmoid函数
+    const sigmoidXStart = 100;
+    const sigmoidXEnd = 400;
+    const sigmoidYCenter = 350;
+    const sigmoidHeight = 100;
+    
+    ctx.beginPath();
+    for (let x = sigmoidXStart; x <= sigmoidXEnd; x++) {
+        // Sigmoid函数: 1 / (1 + e^(-x))
+        const t = (x - 250) / 50; // 缩放x值
+        const sigmoid = 1 / (1 + Math.exp(-t));
+        const y = sigmoidYCenter - sigmoid * sigmoidHeight;
+        
+        if (x === sigmoidXStart) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    }
+    ctx.strokeStyle = 'purple';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 绘制坐标轴
+    ctx.beginPath();
+    ctx.moveTo(sigmoidXStart, sigmoidYCenter);
+    ctx.lineTo(sigmoidXEnd, sigmoidYCenter);
+    ctx.strokeStyle = 'gray';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.moveTo(250, sigmoidYCenter - sigmoidHeight);
+    ctx.lineTo(250, sigmoidYCenter);
+    ctx.stroke();
+    
+    // 标记0.5阈值
+    ctx.fillStyle = '#333';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText('0.5', 245, sigmoidYCenter - sigmoidHeight / 2 + 4);
+    
+    // 绘制公式
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('σ(z) = 1 / (1 + e^(-z))', 50, 50);
+    ctx.fillText('z = wx + b', 50, 75);
+    
+    // 绘制说明文本
+    ctx.fillText('蓝色: 类别0', 50, 100);
+    ctx.fillText('红色: 类别1', 50, 125);
+    ctx.fillText('黑色线: 决策边界', 50, 150);
+    ctx.fillText('紫色线: Sigmoid函数', 50, 175);
+}
+
+// 绘制AdaBoost
+function drawAdaBoost(ctx, width, height) {
+    // 绘制多个弱分类器
+    const weakClassifiers = [
+        {x: width * 0.2, y: height * 0.25},
+        {x: width * 0.5, y: height * 0.25},
+        {x: width * 0.8, y: height * 0.25}
+    ];
+    
+    weakClassifiers.forEach((pos, index) => {
+        drawNode(ctx, pos.x, pos.y, 80, 40, `弱分类器 ${index + 1}`);
+        
+        // 简单的决策边界示意
+        ctx.beginPath();
+        if (index === 0) {
+            ctx.moveTo(pos.x - 30, pos.y + 60);
+            ctx.lineTo(pos.x + 30, pos.y + 60);
+        } else if (index === 1) {
+            ctx.moveTo(pos.x - 30, pos.y + 40);
+            ctx.lineTo(pos.x - 30, pos.y + 80);
+        } else {
+            ctx.moveTo(pos.x - 30, pos.y + 70);
+            ctx.lineTo(pos.x + 30, pos.y + 50);
+        }
+        ctx.strokeStyle = 'gray';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+    
+    // 绘制加权组合
+    const combineX = width / 2;
+    const combineY = height * 0.55;
+    drawNode(ctx, combineX, combineY, 120, 40, "加权组合");
+    
+    // 绘制强分类器
+    const strongX = width / 2;
+    const strongY = height * 0.75;
+    drawNode(ctx, strongX, strongY, 100, 40, "强分类器");
+    
+    // 连接弱分类器到组合节点
+    weakClassifiers.forEach((pos, index) => {
+        drawLine(ctx, pos.x, pos.y + 40, combineX, combineY - 20);
+        
+        // 标记权重
+        const weight = (0.3 + index * 0.1).toFixed(1);
+        ctx.fillStyle = '#333';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`权重: ${weight}`, 
+                   (pos.x + combineX) / 2, 
+                   (pos.y + 40 + combineY - 20) / 2);
+    });
+    
+    // 连接组合节点到强分类器
+    drawLine(ctx, combineX, combineY + 20, strongX, strongY - 20);
+    
+    // 绘制说明文本
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('多个弱分类器加权组合成强分类器', width / 2, 30);
+}
+
+// 绘制K均值聚类
+function drawKMeans(ctx, width, height) {
+    // 生成随机数据点
+    const points = [];
+    const numPoints = 50;
+    const centers = [
+        {x: 200, y: 200, color: 'red'},
+        {x: 400, y: 200, color: 'blue'},
+        {x: 300, y: 350, color: 'green'}
+    ];
+    const k = centers.length;
+    
+    // 围绕每个中心生成点
+    centers.forEach(center => {
+        for (let i = 0; i < numPoints / k; i++) {
+            points.push({
+                x: center.x + (Math.random() * 100 - 50),
+                y: center.y + (Math.random() * 100 - 50),
+                color: center.color
+            });
+        }
+    });
+    
+    // 绘制数据点
+    points.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = point.color;
+        ctx.fill();
+    });
+    
+    // 绘制聚类中心
+    centers.forEach(center => {
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = center.color;
+        ctx.fill();
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    });
+    
+    // 绘制聚类边界（简单示意）
+    ctx.beginPath();
+    ctx.ellipse(200, 200, 70, 70, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.ellipse(400, 200, 70, 70, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'blue';
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.ellipse(300, 350, 70, 70, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'green';
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // 绘制说明文本
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('彩色点: 数据点', 50, 50);
+    ctx.fillText('带黑边的点: 聚类中心', 50, 75);
+    ctx.fillText('虚线: 聚类边界', 50, 100);
+}
+
+// 绘制EM算法
+function drawEM(ctx, width, height) {
+    // 绘制两个高斯分布的混合模型
+    const center1 = {x: 200, y: 200};
+    const center2 = {x: 400, y: 250};
+    
+    // 生成数据点
+    const points = [];
+    const numPoints = 60;
+    
+    // 来自第一个分布的点
+    for (let i = 0; i < numPoints / 2; i++) {
+        points.push({
+            x: center1.x + (Math.random() * 120 - 60),
+            y: center1.y + (Math.random() * 80 - 40),
+            primary: 0
+        });
+    }
+    
+    // 来自第二个分布的点
+    for (let i = 0; i < numPoints / 2; i++) {
+        points.push({
+            x: center2.x + (Math.random() * 100 - 50),
+            y: center2.y + (Math.random() * 100 - 50),
+            primary: 1
+        });
+    }
+    
+    // 绘制数据点（用渐变色表示属于两个分布的概率）
+    points.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+        
+        // 计算属于两个分布的概率（简单模拟）
+        const d1 = Math.sqrt(Math.pow(point.x - center1.x, 2) + Math.pow(point.y - center1.y, 2));
+        const d2 = Math.sqrt(Math.pow(point.x - center2.x, 2) + Math.pow(point.y - center2.y, 2));
+        const p1 = 1 / (1 + d1 / d2); // 属于分布1的概率
+        const p2 = 1 - p1; // 属于分布2的概率
+        
+        // 创建渐变色
+        const gradient = ctx.createRadialGradient(
+            point.x, point.y, 0,
+            point.x, point.y, 5
+        );
+        gradient.addColorStop(0, `rgba(255, 0, 0, ${p1})`);
+        gradient.addColorStop(1, `rgba(0, 0, 255, ${p2})`);
+        
+        ctx.fillStyle = gradient;
+        ctx.fill();
+    });
+    
+    // 绘制两个分布的轮廓
+    ctx.beginPath();
+    ctx.ellipse(center1.x, center1.y, 80, 50, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    
+    ctx.beginPath();
+    ctx.ellipse(center2.x, center2.y, 70, 60, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'blue';
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // 绘制EM步骤
+    const stepY = 380;
+    drawNode(ctx, width * 0.3, stepY, 80, 40, "E步");
+    drawNode(ctx, width * 0.7, stepY, 80, 40, "M步");
+    drawLineWithArrow(ctx, width * 0.3 + 40, stepY, width * 0.7 - 40, stepY);
+    drawLineWithArrow(ctx, width * 0.7, stepY + 20, width * 0.7, stepY + 60);
+    drawLineWithArrow(ctx, width * 0.7, stepY + 80, width * 0.3, stepY + 80);
+    drawLineWithArrow(ctx, width * 0.3, stepY + 80, width * 0.3, stepY + 20);
+    
+    // 步骤说明
+    ctx.fillStyle = '#333';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('估计隐变量', width * 0.3, stepY + 60);
+    ctx.fillText('更新模型参数', width * 0.7, stepY + 60);
+    
+    // 绘制说明文本
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('红色: 分布1', 50, 50);
+    ctx.fillText('蓝色: 分布2', 50, 75);
+    ctx.fillText('渐变色点: 属于两个分布的概率', 50, 100);
+}
+
+// 工具函数：绘制节点
+function drawNode(ctx, x, y, width, height, text) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(x - width / 2, y - height / 2, width, height);
+    
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+    
+    ctx.fillStyle = 'black';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y);
+}
+
+// 工具函数：绘制直线
+function drawLine(ctx, x1, y1, x2, y2) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+}
+
+// 工具函数：绘制带箭头的直线
+function drawLineWithArrow(ctx, x1, y1, x2, y2) {
+    const headLength = 10;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // 绘制箭头
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(
+        x2 - headLength * Math.cos(angle - Math.PI / 6),
+        y2 - headLength * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(
+        x2 - headLength * Math.cos(angle + Math.PI / 6),
+        y2 - headLength * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.stroke();
+}
+
+// 绘制数据集可视化
+
+// 绘制鸢尾花数据集
+function drawIrisDataset(ctx, width, height) {
+    // 生成模拟的鸢尾花数据点（基于花瓣长度和宽度）
+    const classes = [
+        { name: '山鸢尾', color: 'red', count: 50, xRange: [1, 2], yRange: [0.1, 0.6] },
+        { name: '变色鸢尾', color: 'green', count: 50, xRange: [3, 5], yRange: [1, 1.8] },
+        { name: '维吉尼亚鸢尾', color: 'blue', count: 50, xRange: [4.5, 6.9], yRange: [1.4, 2.5] }
+    ];
+    
+    const margin = 50;
+    const plotWidth = width - 2 * margin;
+    const plotHeight = height - 2 * margin;
+    
+    // 绘制坐标轴
+    ctx.beginPath();
+    ctx.moveTo(margin, margin);
+    ctx.lineTo(margin, height - margin);
+    ctx.lineTo(width - margin, height - margin);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // 绘制坐标轴标签
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('花瓣长度 (cm)', width / 2, height - margin / 2);
+    ctx.save();
+    ctx.translate(margin / 2, height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('花瓣宽度 (cm)', 0, 0);
+    ctx.restore();
+    
+    // 绘制数据点
+    classes.forEach(cls => {
+        for (let i = 0; i < cls.count; i++) {
+            // 生成随机点
+            const x = margin + (Math.random() * (cls.xRange[1] - cls.xRange[0]) + cls.xRange[0]) / 7 * plotWidth;
+            const y = height - margin - (Math.random() * (cls.yRange[1] - cls.yRange[0]) + cls.yRange[0]) / 3 * plotHeight;
+            
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = cls.color;
+            ctx.fill();
+        }
+        
+        // 绘制图例
+        ctx.beginPath();
+        ctx.arc(width - margin - 150, margin + 30 + classes.indexOf(cls) * 30, 5, 0, Math.PI * 2);
+        ctx.fillStyle = cls.color;
+        ctx.fill();
+        
+        ctx.fillStyle = '#333';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(cls.name, width - margin - 140, margin + 34 + classes.indexOf(cls) * 30);
+    });
+}
+
+// 绘制MNIST数据集
+function drawMNISTDataset(ctx, width, height) {
+    // 绘制几个示例数字
+    const digits = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const digitSize = 50;
+    const padding = 20;
+    const cols = 5;
+    
+    digits.forEach((digit, index) => {
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        
+        const x = padding + col * (digitSize + padding);
+        const y = padding + row * (digitSize + padding);
+        
+        // 绘制数字框
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, digitSize, digitSize);
+        
+        // 绘制数字标签
+        ctx.fillStyle = '#333';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(digit, x + digitSize / 2, y + digitSize + 20);
+        
+        // 绘制简化的数字图像
+        drawDigit(ctx, x, y, digitSize, digit);
+    });
+    
+    // 绘制标题
+    ctx.fillStyle = '#333';
+    ctx.font = '16px Arial bold';
+    ctx.textAlign = 'center';
+    ctx.fillText('MNIST手写数字样本', width / 2, padding);
+}
+
+// 绘制单个数字（简化版）
+function drawDigit(ctx, x, y, size, digit) {
+    ctx.fillStyle = 'black';
+    ctx.lineWidth = Math.max(2, size / 10);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    const unit = size / 10;
+    
+    ctx.beginPath();
+    
+    switch (digit) {
+        case 0:
+            ctx.arc(x + size / 2, y + size / 2, size / 2 - unit, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+        case 1:
+            ctx.moveTo(x + size / 2, y + unit);
+            ctx.lineTo(x + size / 2, y + size - unit);
+            ctx.stroke();
+            break;
+        case 2:
+            ctx.moveTo(x + unit, y + size / 2);
+            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.moveTo(x + unit, y + unit);
+            ctx.lineTo(x + size - unit, y + unit);
+            ctx.lineTo(x + size - unit, y + size - unit);
+            ctx.lineTo(x + unit, y + size - unit);
+            ctx.stroke();
+            break;
+        case 3:
+            ctx.moveTo(x + unit, y + unit);
+            ctx.lineTo(x + size - unit, y + unit);
+            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.moveTo(x + size - unit, y + size / 2);
+            ctx.lineTo(x + size - unit, y + size - unit);
+            ctx.moveTo(x + unit, y + size - unit);
+            ctx.lineTo(x + size - unit, y + size - unit);
+            ctx.stroke();
+            break;
+        case 4:
+            ctx.moveTo(x + unit, y + unit);
+            ctx.lineTo(x + unit, y + size - unit);
+            ctx.moveTo(x + unit, y + size / 2);
+            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.moveTo(x + size - unit, y + unit);
+            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.stroke();
+            break;
+        case 5:
+            ctx.moveTo(x + size - unit, y + unit);
+            ctx.lineTo(x + unit, y + unit);
+            ctx.lineTo(x + unit, y + size / 2);
+            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.lineTo(x + size - unit, y + size - unit);
+            ctx.lineTo(x + unit, y + size - unit);
+            ctx.stroke();
+            break;
+        case 6:
+            ctx.moveTo(x + size - unit, y + unit);
+            ctx.lineTo(x + unit, y + unit);
+            ctx.lineTo(x + unit, y + size - unit);
+            ctx.lineTo(x + size - unit, y + size - unit);
+            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.lineTo(x + unit, y + size / 2);
+            ctx.stroke();
+            break;
+        case 7:
+            ctx.moveTo(x + unit, y + unit);
+            ctx.lineTo(x + size - unit, y + unit);
+            ctx.lineTo(x + size - unit, y + size - unit);
+            ctx.stroke();
+            break;
+        case 8:
+            ctx.arc(x + size / 2, y + size / 2, size / 2 - unit, 0, Math.PI * 2);
+            ctx.moveTo(x + unit, y + size / 2);
+            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.stroke();
+            break;
+        case 9:
+            ctx.arc(x + size / 2, y + size / 2, size / 2 - unit, 0, Math.PI);
+            ctx.lineTo(x + unit, y + size / 2);
+            ctx.lineTo(x + unit, y + unit);
+            ctx.lineTo(x + size - unit, y + unit);
+            ctx.stroke();
+            break;
+    }
+}
+
+// 绘制回归数据集
+function drawRegressionDataset(ctx, width, height) {
+    // 生成模拟的回归数据点
+    const points = [];
+    const numPoints = 50;
+    const margin = 50;
+    const plotWidth = width - 2 * margin;
+    const plotHeight = height - 2 * margin;
+    
+    for (let i = 0; i < numPoints; i++) {
+        const x = margin + (i / (numPoints - 1)) * plotWidth;
+        // 生成大致符合y = 0.5x² + 噪声的非线性关系
+        const baseY = 50 + 0.0001 * Math.pow(i - 25, 3) + (Math.random() * 40 - 20);
+        const y = height - margin - (baseY / 100) * plotHeight;
+        
+        points.push({x, y});
+    }
+    
+    // 绘制坐标轴
+    ctx.beginPath();
+    ctx.moveTo(margin, margin);
+    ctx.lineTo(margin, height - margin);
+    ctx.lineTo(width - margin, height - margin);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // 绘制坐标轴标签
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('特征X', width / 2, height - margin / 2);
+    ctx.save();
+    ctx.translate(margin / 2, height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('目标值Y', 0, 0);
+    ctx.restore();
+    
+    // 绘制数据点
+    points.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'blue';
+        ctx.fill();
+    });
+    
+    // 绘制趋势线
+    ctx.beginPath();
+    points.forEach((point, index) => {
+        if (index === 0) {
+            ctx.moveTo(point.x, point.y);
+        } else {
+            // 使用二次贝塞尔曲线平滑连接点
+            const nextPoint = points[index + 1] || point;
+            const controlPoint = {
+                x: (point.x + nextPoint.x) / 2,
+                y: (point.y + nextPoint.y) / 2
+            };
+            ctx.quadraticCurveTo(point.x, point.y, controlPoint.x, controlPoint.y);
+        }
+    });
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // 绘制说明
+    ctx.fillStyle = '#333';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('蓝色点: 数据点', margin, margin - 10);
+    ctx.fillText('红色线: 潜在趋势', margin + 150, margin - 10);
+}
+
+// 工具函数：绘制节点
+function drawNode(ctx, x, y, width, height, text) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(x - width / 2, y - height / 2, width, height);
+    
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+    
+    ctx.fillStyle = 'black';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y);
+}
+
+// 工具函数：绘制直线
+function drawLine(ctx, x1, y1, x2, y2) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+}
+
+// 工具函数：绘制带箭头的直线
+function drawLineWithArrow(ctx, x1, y1, x2, y2) {
+    const headLength = 10;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // 绘制箭头
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(
+        x2 - headLength * Math.cos(angle - Math.PI / 6),
+        y2 - headLength * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(
+        x2 - headLength * Math.cos(angle + Math.PI / 6),
+        y2 - headLength * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.stroke();
+}

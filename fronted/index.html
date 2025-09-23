@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机器学习算法可视化平台</title>
+    <link rel="stylesheet" href="algorithm.css">
+</head>
+<body>
+    <header>
+        <h1>机器学习算法可视化平台</h1>
+        <nav>
+            <ul>
+                <li><a href="#overview">算法概览</a></li>
+                <li><a href="#algorithms">算法详情</a></li>
+                <li><a href="#datasets">数据集</a></li>
+                <li><a href="#comparison">算法比较</a></li>
+                <li><a href="#report">实验报告</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <!-- 算法概览部分 -->
+        <section id="overview">
+            <h2>机器学习算法概览</h2>
+            <p>以下是10种常用的机器学习算法，点击任意卡片查看详情。</p>
+            <div class="algorithm-grid" id="algorithmGrid">
+                <!-- 算法卡片将通过JavaScript动态生成 -->
+            </div>
+        </section>
+
+        <!-- 算法详情和运行部分 -->
+        <section id="algorithms">
+            <h2>算法详情与运行</h2>
+            <div class="control-panel">
+                <div class="form-group">
+                    <label for="algorithmSelect">选择算法：</label>
+                    <select id="algorithmSelect">
+                        <option value="">-- 请选择算法 --</option>
+                        <!-- 选项将通过JavaScript动态生成 -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="datasetSelect">选择数据集：</label>
+                    <select id="datasetSelect">
+                        <option value="">-- 请选择数据集 --</option>
+                        <!-- 选项将通过JavaScript动态生成 -->
+                    </select>
+                </div>
+                <button id="runAlgorithm">运行算法</button>
+            </div>
+
+            <div class="algorithm-details">
+                <h3 id="algorithmTitle">算法名称</h3>
+                <p id="algorithmDescription">请选择一个算法查看详细描述...</p>
+                
+                <div class="visualization-container">
+                    <h4>算法原理可视化</h4>
+                    <canvas id="algorithmVisualization"></canvas>
+                </div>
+                
+                <div class="performance-metrics">
+                    <h4>性能指标</h4>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <h5>准确率 (Accuracy)</h5>
+                            <p id="accuracy">--</p>
+                        </div>
+                        <div class="metric-card">
+                            <h5>精确率 (Precision)</h5>
+                            <p id="precision">--</p>
+                        </div>
+                        <div class="metric-card">
+                            <h5>召回率 (Recall)</h5>
+                            <p id="recall">--</p>
+                        </div>
+                        <div class="metric-card">
+                            <h5>F1分数 (F1-Score)</h5>
+                            <p id="f1">--</p>
+                        </div>
+                        <div class="metric-card">
+                            <h5>均方误差 (MSE)</h5>
+                            <p id="mse">--</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据集部分 -->
+        <section id="datasets">
+            <h2>数据集</h2>
+            <p>以下是可用于测试算法的经典数据集。</p>
+            <div class="dataset-grid">
+                <div class="dataset-card" data-dataset="iris">
+                    <h3>鸢尾花数据集</h3>
+                    <p>包含3种鸢尾花的4个特征，共150个样本。常用于分类算法测试。</p>
+                    <button class="view-dataset">查看数据</button>
+                </div>
+                <div class="dataset-card" data-dataset="mnist">
+                    <h3>MNIST样本</h3>
+                    <p>包含手写数字0-9的灰度图像，这里使用简化样本集。常用于图像识别测试。</p>
+                    <button class="view-dataset">查看数据</button>
+                </div>
+                <div class="dataset-card" data-dataset="regression">
+                    <h3>回归样本</h3>
+                    <p>包含一个特征和一个连续目标值的数据集，用于回归算法测试。</p>
+                    <button class="view-dataset">查看数据</button>
+                </div>
+            </div>
+            <div class="visualization-container">
+                <h4>数据集可视化</h4>
+                <div id="datasetVisualization">
+                    <canvas id="datasetCanvas"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- 算法比较部分 -->
+        <section id="comparison">
+            <h2>算法性能比较</h2>
+            <div class="control-panel">
+                <div class="form-group">
+                    <label for="comparisonDataset">选择数据集：</label>
+                    <select id="comparisonDataset">
+                        <option value="iris">鸢尾花数据集</option>
+                        <option value="mnist">MNIST样本</option>
+                        <option value="regression">回归样本</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="comparisonMetric">选择评价指标：</label>
+                    <select id="comparisonMetric">
+                        <option value="accuracy">准确率 (Accuracy)</option>
+                        <option value="precision">精确率 (Precision)</option>
+                        <option value="recall">召回率 (Recall)</option>
+                        <option value="f1">F1分数 (F1-Score)</option>
+                        <option value="mse">均方误差 (MSE)</option>
+                    </select>
+                </div>
+                <button id="updateComparison">更新比较图表</button>
+            </div>
+            <div class="visualization-container">
+                <canvas id="comparisonChart"></canvas>
+            </div>
+        </section>
+
+        <!-- 实验报告部分 -->
+        <section id="report">
+            <h2>实验报告</h2>
+            <button id="generateReport">生成实验报告</button>
+            <div id="experimentResults">
+                <p>点击上方按钮生成实验报告...</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>机器学习算法可视化平台 &copy; 2023</p>
+    </footer>
+
+    <script src="algorithm.js"></script>
+</body>
+</html>
