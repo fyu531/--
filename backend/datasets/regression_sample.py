@@ -1,4 +1,9 @@
 import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.ensemble import RandomForestRegressor
 
 def load_regression_sample():
     """
@@ -32,15 +37,15 @@ def load_regression_sample():
     X = np.column_stack((area, age, rooms, distance))
     
     # 生成目标值：房价（万元）
-    # 基于特征的线性组合加上一些非线性项和噪声
+    # 调整特征影响权重，使模式更明显
     y = (
-        0.8 * area +          # 面积越大，价格越高
-        -0.5 * age +          # 房龄越大，价格越低
-        15 * rooms +          # 房间越多，价格越高
-        -2 * distance +       # 距离越远，价格越低
+        1.2 * area +          # 面积越大，价格越高（增加权重）
+        -1.0 * age +          # 房龄越大，价格越低（增加权重）
+        20 * rooms +          # 房间越多，价格越高（增加权重）
+        -3 * distance +       # 距离越远，价格越低（增加权重）
         0.01 * area**2 +      # 面积的非线性影响
-        -0.1 * age * distance +  # 房龄和距离的交互作用
-        np.random.normal(0, 10, n_samples)  # 噪声
+        -0.15 * age * distance +  # 房龄和距离的交互作用（增加权重）
+        np.random.normal(0, 8, n_samples)  # 减少噪声
     )
     
     # 确保价格为正数
@@ -56,3 +61,42 @@ def load_regression_sample():
     }
     
     return X, y, description
+
+def evaluate_dataset():
+    # 加载数据
+    X, y, desc = load_regression_sample()
+    print(f"数据集信息: {desc['name']}, 样本数: {desc['samples']}, 特征数: {desc['features']}")
+    
+    # 划分训练集和测试集
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+    
+    # 特征标准化
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    
+    # 尝试不同的模型
+    models = {
+        "线性回归": LinearRegression(),
+        "岭回归": Ridge(alpha=1.0),
+        "随机森林回归": RandomForestRegressor(n_estimators=100, random_state=42)
+    }
+    
+    # 评估每个模型
+    for name, model in models.items():
+        # 训练模型
+        model.fit(X_train_scaled, y_train)
+        
+        # 预测
+        y_pred = model.predict(X_test_scaled)
+        
+        # 评估
+        mse = mean_squared_error(y_test, y_pred)
+        rmse = np.sqrt(mse)
+        r2 = r2_score(y_test, y_pred)
+        
+        print(f"\n{name} 结果:")
+        print(f"均方根误差 (RMSE): {rmse:.2f}")
+        print(f"R² 分数: {r2:.4f} (越接近1越好)")

@@ -79,20 +79,15 @@ class EMAlgorithm:
             self.covariances[k] += np.eye(n_features) * 1e-6
             
     def _compute_log_likelihood(self, X):
-        """计算对数似然值"""
-        n_samples = X.shape[0]
-        log_likelihood = 0
-        
-        for i in range(n_samples):
-            # 计算混合分布的概率密度
-            total = 0
-            for k in range(self.n_components):
-                total += self.weights[k] * multivariate_normal.pdf(
-                    X[i], mean=self.means[k], cov=self.covariances[k]
-                )
-            log_likelihood += np.log(total)
-            
-        return log_likelihood
+        # 向量化计算每个样本在每个成分的概率密度
+        densities = np.array([
+            multivariate_normal.pdf(X, mean=self.means[k], cov=self.covariances[k])
+            for k in range(self.n_components)
+        ]).T  # 形状：(n_samples, n_components)
+        # 混合分布概率 = 权重×密度的总和
+        mixture_densities = np.dot(densities, self.weights)
+        # 对数似然总和
+        return np.sum(np.log(mixture_densities))
         
     def train(self, X):
         """

@@ -1,5 +1,7 @@
 import sys
 import os
+# 先在文件顶部导入需要的库
+from sklearn.metrics import adjusted_rand_score, silhouette_score
 
 # 获取项目根目录（假设 app.py 在 backend 文件夹下，根目录是 backend 的上一级）
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -245,11 +247,29 @@ def train_model():
         return jsonify({'error': f'初始化算法失败: {str(e)}'}), 500
         
     try:
+        # 找到这部分代码
         if task_type == 'clustering':
             model.train(X)
             y_pred = model.predict(X_test)
-            metrics = {}
+            metrics = {}  # 初始化空字典
+            
+            # 只计算聚类指标，不计算分类指标
+            if y is not None and len(y) > 0:
+                try:
+                    from sklearn.metrics import adjusted_rand_score
+                    metrics['ari'] = float(adjusted_rand_score(y_test, y_pred))
+                except Exception as e:
+                    print(f"计算ARI失败: {e}")
+                    metrics['ari'] = None
+                    
+            try:
+                from sklearn.metrics import silhouette_score
+                metrics['silhouette'] = float(silhouette_score(X_test, y_pred))
+            except Exception as e:
+                print(f"计算轮廓系数失败: {e}")
+                metrics['silhouette'] = None
         else:
+            # 分类/回归算法才计算原来的指标
             model.train(X_train, y_train)
             y_pred = model.predict(X_test)
             metrics = calculate_metrics(y_test, y_pred, task_type)
@@ -347,6 +367,20 @@ def compare_algorithms():
                 model.train(X)
                 y_pred = model.predict(X_test)
                 metrics = {}
+
+                            # 如果有真实标签，可以计算聚类评估指标
+                if y is not None and len(y) > 0:
+                    try:
+                        # 计算调整兰德指数(ARI)
+                        metrics['ari'] = float(adjusted_rand_score(y_test, y_pred))
+                    except Exception:
+                        metrics['ari'] = None
+                        
+                # 计算轮廓系数(Silhouette Score)
+                try:
+                    metrics['silhouette'] = float(silhouette_score(X_test, y_pred))
+                except Exception:
+                    metrics['silhouette'] = None    
             else:
                 model.train(X_train, y_train)
                 y_pred = model.predict(X_test)

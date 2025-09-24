@@ -13,6 +13,7 @@ class KMeans:
         self.max_iters = max_iters
         self.centroids = None  # 聚类中心
         self.clusters = None   # 聚类结果
+        self.X = None          # 保存训练数据，移到这里作为类属性
         
     def _initialize_centroids(self, X):
         """初始化聚类中心（随机选择k个样本）"""
@@ -83,6 +84,9 @@ class KMeans:
         X = np.array(X)
         n_samples, n_features = X.shape
         
+        # 保存原始数据（关键修改：移到循环外面，确保一定会保存）
+        self.X = X.copy()
+                
         # 初始化聚类中心
         self.centroids = self._initialize_centroids(X)
         
@@ -100,7 +104,7 @@ class KMeans:
             # 检查是否收敛
             if self._is_converged(old_centroids, self.centroids):
                 break
-                
+            
     def predict(self, X):
         """
         预测样本所属聚类
@@ -121,25 +125,39 @@ class KMeans:
         return np.array(predictions)
         
     def get_visualization_data(self):
-        if self.centroids is None or self.clusters is None:
-            return None
+        if self.centroids is None or self.clusters is None or self.X is None:
+            print("KMeans: 尚未训练或训练未完成")
+            return {
+                'k': int(self.k),
+                'centroids': [],
+                'labels': [],
+                'cluster_sizes': [],
+                'data': []
+            }
         
-        # 计算总样本数量（从聚类结果反推）
-        total_samples = sum(len(cluster) for cluster in self.clusters)
-        
-        # 创建与样本数量匹配的标签数组
-        labels = np.zeros(total_samples, dtype=int)
-        
-        # 为每个样本分配聚类标签
-        for cluster_idx, sample_indices in enumerate(self.clusters):
-            for sample_idx in sample_indices:
-                # 确保样本索引在有效范围内
-                if sample_idx < total_samples:
-                    labels[sample_idx] = cluster_idx
-                
-        return {
-            'k': self.k,
-            'centroids': self.centroids.tolist(),
-            'labels': labels.tolist(),  # 每个样本的聚类标签
-            'cluster_sizes': [len(cluster) for cluster in self.clusters]
-        }
+        try:
+            # 确保索引不会越界（关键修改）
+            total_samples = self.X.shape[0]
+            labels = np.zeros(total_samples, dtype=int)
+            
+            for cluster_idx, sample_indices in enumerate(self.clusters):
+                for sample_idx in sample_indices:
+                    if 0 <= sample_idx < total_samples:  # 增加边界检查
+                        labels[sample_idx] = cluster_idx
+                        
+            return {
+                'k': int(self.k),
+                'centroids': self.centroids.tolist(),
+                'labels': labels.tolist(),
+                'cluster_sizes': [len(cluster) for cluster in self.clusters],
+                'data': self.X.tolist()
+            }
+        except Exception as e:
+            print(f"生成可视化数据时出错: {e}")
+            return {
+                'k': int(self.k),
+                'centroids': [],
+                'labels': [],
+                'cluster_sizes': [],
+                'data': []
+            }

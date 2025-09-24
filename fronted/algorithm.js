@@ -480,78 +480,95 @@ function initReportGeneration() {
 // 生成实验报告
 async function generateExperimentReport() {
     try {
-        // 获取所有算法和数据集的比较结果
         const algorithmsResponse = await fetch(`${API_BASE_URL}/algorithms`);
         const algorithmsData = await algorithmsResponse.json();
-        const algorithmIds = algorithmsData.algorithms.map(algo => algo.id);
         
-        // 分别获取三个数据集上的比较结果
-        const metrics = ['accuracy', 'mse'];
-        const datasets = ['iris', 'mnist', 'regression'];
+        // 按任务类型分组算法
+        const clusteringAlgos = algorithmsData.algorithms
+            .filter(algo => algo.task_type === 'clustering')
+            .map(algo => algo.id);
+            
+        const classificationAlgos = algorithmsData.algorithms
+            .filter(algo => algo.task_type === 'classification' || algo.task_type === 'both')
+            .map(algo => algo.id);
+            
+        const regressionAlgos = algorithmsData.algorithms
+            .filter(algo => algo.task_type === 'regression' || algo.task_type === 'both')
+            .map(algo => algo.id);
+        
         const comparisonResults = {};
         
-        for (const dataset of datasets) {
-            const metric = dataset === 'regression' ? 'mse' : 'accuracy';
-            const response = await fetch(`${API_BASE_URL}/compare`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    algorithms: algorithmIds,
-                    dataset: dataset,
-                    metric: metric
-                })
-            });
-            
-            comparisonResults[dataset] = await response.json();
-        }
+        // 1. 鸢尾花数据集（分类）
+        comparisonResults.iris = await fetch(`${API_BASE_URL}/compare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                algorithms: classificationAlgos,
+                dataset: 'iris',
+                metric: 'accuracy'
+            })
+        }).then(r => r.json());
         
-        // 生成报告内容
+        // 2. MNIST数据集（分类）
+        comparisonResults.mnist = await fetch(`${API_BASE_URL}/compare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                algorithms: classificationAlgos,
+                dataset: 'mnist',
+                metric: 'accuracy'
+            })
+        }).then(r => r.json());
+        
+        // 3. 回归数据集（回归）
+        comparisonResults.regression = await fetch(`${API_BASE_URL}/compare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                algorithms: regressionAlgos,
+                dataset: 'regression',
+                metric: 'mse'
+            })
+        }).then(r => r.json());
+        
         let reportContent = `<h3>机器学习算法性能比较实验报告</h3>`;
         
-        // 鸢尾花数据集结果
+        // 鸢尾花数据集（全部算法）
         const irisResults = comparisonResults.iris.results;
-        const topIris = Object.entries(irisResults)
-            .filter(([_, data]) => data.metric !== null)
-            .sort(([_, a], [__, b]) => b.metric - a.metric)
-            .slice(0, 3);
-        
+        const allIris = Object.entries(irisResults)
+            .filter(([_, data]) => typeof data.metric === 'number')
+            .sort(([_, a], [__, b]) => b.metric - a.metric);  // 准确率高到低
+            
         reportContent += `<h4>1. 鸢尾花数据集（分类任务）</h4>`;
-        reportContent += `<p>在鸢尾花数据集上，表现最佳的三个算法分别是：</p>`;
         reportContent += `<ul>`;
-        topIris.forEach(([algoId, data], index) => {
-            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId].title}：准确率 ${data.metric.toFixed(4)}</li>`;
+        allIris.forEach(([algoId, data], index) => {
+            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId]?.title || algoId}：准确率 ${data.metric.toFixed(4)}</li>`;
         });
         reportContent += `</ul>`;
         
-        // MNIST数据集结果
+        // MNIST数据集（全部算法）
         const mnistResults = comparisonResults.mnist.results;
-        const topMnist = Object.entries(mnistResults)
-            .filter(([_, data]) => data.metric !== null)
-            .sort(([_, a], [__, b]) => b.metric - a.metric)
-            .slice(0, 3);
-        
-        reportContent += `<h4>2. MNIST样本数据集（图像分类任务）</h4>`;
-        reportContent += `<p>在MNIST样本数据集上，表现最佳的三个算法分别是：</p>`;
+        const allMnist = Object.entries(mnistResults)
+            .filter(([_, data]) => typeof data.metric === 'number')
+            .sort(([_, a], [__, b]) => b.metric - a.metric);  // 准确率高到低
+            
+        reportContent += `<h4>2. MNIST样本数据集（分类任务）</h4>`;
         reportContent += `<ul>`;
-        topMnist.forEach(([algoId, data], index) => {
-            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId].title}：准确率 ${data.metric.toFixed(4)}</li>`;
+        allMnist.forEach(([algoId, data], index) => {
+            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId]?.title || algoId}：准确率 ${data.metric.toFixed(4)}</li>`;
         });
         reportContent += `</ul>`;
         
-        // 回归数据集结果
+        // 回归数据集（全部算法）
         const regressionResults = comparisonResults.regression.results;
-        const topRegression = Object.entries(regressionResults)
-            .filter(([_, data]) => data.metric !== null)
-            .sort(([_, a], [__, b]) => a.metric - b.metric)
-            .slice(0, 3);
-        
+        const allRegression = Object.entries(regressionResults)
+            .filter(([_, data]) => typeof data.metric === 'number')
+            .sort(([_, a], [__, b]) => a.metric - b.metric);  // MSE低到高
+            
         reportContent += `<h4>3. 回归样本数据集（回归任务）</h4>`;
-        reportContent += `<p>在回归样本数据集上，表现最佳的三个算法分别是（均方误差越小越好）：</p>`;
         reportContent += `<ul>`;
-        topRegression.forEach(([algoId, data], index) => {
-            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId].title}：均方误差 ${data.metric.toFixed(4)}</li>`;
+        allRegression.forEach(([algoId, data], index) => {
+            reportContent += `<li>${index + 1}. ${algorithmDescriptions[algoId]?.title || algoId}：均方误差 ${data.metric.toFixed(4)}</li>`;
         });
         reportContent += `</ul>`;
         
@@ -568,6 +585,7 @@ async function generateExperimentReport() {
         alert('生成实验报告失败，请重试。');
     }
 }
+
 
 // 初始化画布上下文
 function initCanvases() {
@@ -607,7 +625,6 @@ async function runAlgorithm(algoKey, datasetKey) {
         
         console.log(`开始运行算法: ${algoKey}, 数据集: ${datasetKey}`);
         
-        // 发送请求到后端
         const response = await fetch(`${API_BASE_URL}/train`, {
             method: 'POST',
             headers: {
@@ -619,59 +636,60 @@ async function runAlgorithm(algoKey, datasetKey) {
             })
         });
         
-        // 打印HTTP响应状态
-        console.log(`服务器响应状态: ${response.status} ${response.statusText}`);
+        if (!response.ok) throw new Error(`HTTP错误！状态: ${response.status}`);
         
-        // 解析响应内容
-        let result;
-        try {
-            result = await response.json();
-            console.log('服务器返回数据:', result); // 打印完整返回数据
-        } catch (jsonError) {
-            console.error('解析JSON响应失败:', jsonError);
-            console.error('原始响应内容:', await response.text()); // 打印原始响应文本
-            alert('服务器返回格式错误，请检查后端日志');
-            return;
-        }
+        const result = await response.json();
+        console.log('服务器返回数据:', result);
         
-        // 检查业务逻辑错误
         if (result.error) {
             console.error(`业务错误: ${result.error}`);
             alert(`错误: ${result.error}`);
             return;
         }
         
-        // 验证必要字段是否存在
         if (!result.metrics) {
             console.error('服务器返回数据缺少metrics字段', result);
             alert('算法运行结果格式不正确');
             return;
         }
         
-        // 更新性能指标显示
-        document.getElementById('accuracy').textContent = result.metrics.accuracy !== undefined ? result.metrics.accuracy.toFixed(4) : '--';
-        document.getElementById('precision').textContent = result.metrics.precision !== undefined ? result.metrics.precision.toFixed(4) : '--';
-        document.getElementById('recall').textContent = result.metrics.recall !== undefined ? result.metrics.recall.toFixed(4) : '--';
-        document.getElementById('f1').textContent = result.metrics.f1 !== undefined ? result.metrics.f1.toFixed(4) : '--';
-        document.getElementById('mse').textContent = result.metrics.mse !== undefined ? result.metrics.mse.toFixed(4) : '--';
+        if (result.visualization) {
+            window.visualizationData = result.visualization;
+            if (result.visualization.data) {
+                window.currentDatasetFeatures = result.visualization.data;
+            }
+        }
         
-        // 更新算法可视化，加入结果
+        function formatNumber(value) {
+            if (value === null || value === undefined || typeof value !== 'number' || isNaN(value)) {
+                return '--';
+            }
+            return value.toFixed(4);
+        }
+
+        // 替换原来的指标显示部分
+        if (algoKey === 'kmeans' || algoKey === 'em') {
+            // 聚类算法：只显示ARI和轮廓系数
+            document.getElementById('accuracy').textContent = `ARI(兰德指数):${formatNumber(result.metrics.ari || '--')}`;
+            document.getElementById('precision').textContent = `轮廓系数:${formatNumber(result.metrics.silhouette || '--')}`;
+            document.getElementById('recall').textContent = '不适用';
+            document.getElementById('f1').textContent = '不适用';
+            document.getElementById('mse').textContent = '不适用';
+        } else {
+            // 其他算法：正常显示分类/回归指标
+            document.getElementById('accuracy').textContent = formatNumber(result.metrics.accuracy);
+            document.getElementById('precision').textContent = formatNumber(result.metrics.precision);
+            document.getElementById('recall').textContent = formatNumber(result.metrics.recall);
+            document.getElementById('f1').textContent = formatNumber(result.metrics.f1);
+            document.getElementById('mse').textContent = formatNumber(result.metrics.mse);
+        }
+        // =========== 修改结束 ============
+        
         drawAlgorithmResults(algoKey, datasetKey, result.metrics, result.visualization);
         console.log(`算法${algoKey}运行成功`);
         
     } catch (error) {
-        // 捕获所有其他错误
         console.error('运行算法时发生异常:', error);
-        
-        // 更详细的错误类型判断
-        if (error.name === 'TypeError') {
-            console.error('类型错误 - 可能是未定义的变量或方法');
-        } else if (error.name === 'SyntaxError') {
-            console.error('语法错误 - 可能是JSON解析问题');
-        } else if (error.message.includes('Failed to fetch')) {
-            console.error('网络请求失败 - 可能是服务器未启动或跨域问题');
-        }
-        
         alert(`运行算法失败: ${error.message}\n请查看控制台获取详细信息`);
     }
 }
@@ -713,7 +731,8 @@ function drawAlgorithmResults(algoKey, datasetKey, metrics, visualizationData) {
     if (visualizationData) {
         // 例如，对于决策树，可以绘制树结构
         if (algoKey === 'decision_tree') {
-            drawTreeVisualization(ctx, canvas.width, canvas.height);
+            // drawTreeVisualization(ctx, canvas.width, canvas.height);
+            drawDecisionTree(ctx, canvas.width, canvas.height);
         }
         else if (algoKey === 'kmeans') {
             drawKMeansResults(ctx, canvas.width, canvas.height);
@@ -740,7 +759,7 @@ function drawAlgorithmResults(algoKey, datasetKey, metrics, visualizationData) {
             drawNaiveBayes(ctx, canvas.width, canvas.height);
         }
         else if (algoKey === 'svm') {
-            drawSVM(ctx, canvas.width, canvas.height, visualizationData);
+            drawSVM(ctx, canvas.width, canvas.height);
         }
     }
 }
@@ -799,6 +818,150 @@ function drawNaiveBayes(ctx, width, height) {
         drawLine(ctx, centerX, centerY, x, y);
     });
 }
+
+
+function drawKMeansResults(ctx, width, height) {
+    // 1. 检查上下文和尺寸
+    if (!ctx) {
+        console.error('绘图上下文(ctx)为空');
+        alert('可视化失败：绘图上下文无效');
+        return;
+    }
+    if (!width || !height || width <= 0 || height <= 0) {
+        console.error('无效的画布尺寸', {width, height});
+        alert('可视化失败：画布尺寸无效');
+        return;
+    }
+
+    // 2. 从全局获取数据
+    if (!window.visualizationData) {
+        console.error('全局变量 window.visualizationData 不存在');
+        alert('可视化失败：未提供数据');
+         return;
+    }
+    const { centroids, labels, k: kFromData } = window.visualizationData;
+
+    // 3. 检查数据结构
+    if (!centroids || !Array.isArray(centroids)) {
+        console.error('centroids数据无效', centroids);
+        alert('可视化失败：聚类中心数据无效');
+        return;
+    }
+    if (!labels || !Array.isArray(labels)) {
+        console.error('labels数据无效', labels);
+        alert('可视化失败：标签数据无效');
+        return;
+    }
+
+    // 4. 清空画布
+    ctx.clearRect(0, 0, width, height);
+
+    // 5. 准备数据
+    const k = kFromData || centroids.length;
+
+    // 6. 检查原始数据
+    if (!window.currentDatasetFeatures || !Array.isArray(window.currentDatasetFeatures)) {
+        console.error('缺少原始数据 window.currentDatasetFeatures');
+        alert('可视化失败：缺少原始数据');
+        return;
+    }
+
+    // 7. 处理数据长度
+    const dataLen = Math.min(window.currentDatasetFeatures.length, labels.length);
+    if (dataLen === 0) {
+        console.error('没有可可视化的数据');
+        alert('可视化失败：没有可显示的数据');
+        return;
+    }
+
+    // 8. 数据归一化
+    const features = window.currentDatasetFeatures.slice(0, dataLen);
+    const feature0 = features.map(s => s[0]);
+    const feature1 = features.map(s => s[1]);
+
+    const minX = Math.min(...feature0);
+    const maxX = Math.max(...feature0);
+    const minY = Math.min(...feature1);
+    const maxY = Math.max(...feature1);
+
+    const normalizeX = (x) => {
+        const rangeX = maxX - minX || 1;
+        return width * 0.1 + (x - minX) / rangeX * width * 0.8;
+    };
+    const normalizeY = (y) => {
+        const rangeY = maxY - minY || 1;
+        return height * 0.85 - (y - minY) / rangeY * height * 0.7;
+    };
+
+    // 9. 准备绘图数据
+    const dataset = features.map((sample, i) => ({
+        x: normalizeX(sample[0]),
+        y: normalizeY(sample[1]),
+        cluster: labels[i]
+    }));
+
+    // 10. 生成颜色
+    const colors = [];
+    for (let i = 0; i < k; i++) {
+        colors.push(`rgba(${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, 0.6)`);
+    }
+
+    // 11. 绘制聚类点
+    dataset.forEach(point => {
+        ctx.fillStyle = colors[point.cluster % colors.length];
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.stroke();
+    });
+
+    // 12. 绘制聚类中心
+    centroids.forEach((centroid, i) => {
+        const x = normalizeX(centroid[0]);
+        const y = normalizeY(centroid[1]);
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    });
+
+    // 13. 绘制坐标轴
+    ctx.beginPath();
+    ctx.moveTo(width * 0.1, height * 0.85);
+    ctx.lineTo(width * 0.9, height * 0.85);
+    ctx.lineTo(width * 0.88, height * 0.83);
+    ctx.moveTo(width * 0.9, height * 0.85);
+    ctx.lineTo(width * 0.88, height * 0.87);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(width * 0.1, height * 0.85);
+    ctx.lineTo(width * 0.1, height * 0.15);
+    ctx.lineTo(width * 0.08, height * 0.17);
+    ctx.moveTo(width * 0.1, height * 0.15);
+    ctx.lineTo(width * 0.12, height * 0.17);
+    ctx.stroke();
+
+    // 14. 绘制标题和标签
+    ctx.fillStyle = '#333';
+    ctx.font = '16px Arial bold';
+    ctx.textAlign = 'center';
+    ctx.fillText('KMeans 聚类结果', width / 2, height * 0.1);
+
+    ctx.font = '12px Arial';
+    ctx.fillText('特征 0', width * 0.9, height * 0.88);
+    ctx.save();
+    ctx.translate(width * 0.07, height * 0.15);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('特征 1', 0, 0);
+    ctx.restore();
+}
+
 
 // 绘制KNN
 function drawKNN(ctx, width, height) {
@@ -1522,36 +1685,33 @@ function drawIrisDataset(ctx, width, height, dataset) {
 }
 
 function drawMNISTDataset(ctx, width, height, dataset) {
-    const samples = dataset.samples;  // 形状: [n, 784]
-    const labels = dataset.labels;    // 形状: [n]
-    
+    const samples = dataset.samples;
+    // const labels = dataset.labels;
+    const labels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     const digitSize = 50;
-    const padding = 20;
+    const padding = 50;
     const cols = 5;
-    
-    // 只显示前10个样本
     const displayCount = Math.min(10, samples.length);
     
     for (let i = 0; i < displayCount; i++) {
         const col = i % cols;
         const row = Math.floor(i / cols);
+        const x = 6.5 * padding + col * (digitSize + padding);
+        const y = 4 * padding + row * (digitSize + padding);
         
-        const x = padding + col * (digitSize + padding);
-        const y = padding + row * (digitSize + padding);
-        
-        // 绘制数字框
+        // 绘制框
         ctx.strokeStyle = '#ccc';
         ctx.lineWidth = 1;
         ctx.strokeRect(x, y, digitSize, digitSize);
         
-        // 绘制数字标签
+        // 绘制标签
         ctx.fillStyle = '#333';
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(labels[i], x + digitSize / 2, y + digitSize + 20);
         
-        // 绘制真实的手写数字
-        drawMNISTDigit(ctx, x, y, digitSize, samples[i]);
+        // 绘制真实手写数字
+        drawDigit(ctx, x+15, y+15, digitSize/2, labels[i]);
     }
     
     // 绘制标题
@@ -1583,20 +1743,27 @@ function drawMNISTDigit(ctx, x, y, size, pixelData) {
     ctx.drawImage(tempCanvas, x, y);
 }
 
-// 绘制单个数字（简化版）
 function drawDigit(ctx, x, y, size, digit) {
+    // 确保是整数
+    const num = typeof digit === 'number' ? Math.floor(digit) : parseInt(digit, 10);
+
     ctx.fillStyle = 'black';
-    ctx.lineWidth = Math.max(2, size / 10);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = Math.max(2, size / 14);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    
-    const unit = size / 10;
-    
+
+    const unit = size / 14;
+
     ctx.beginPath();
-    
-    switch (digit) {
+
+    switch (num) {
         case 0:
-            ctx.arc(x + size / 2, y + size / 2, size / 2 - unit, 0, Math.PI * 2);
+            ctx.moveTo(x + unit * 2, y + unit);
+            ctx.lineTo(x + size - unit * 2, y + unit);
+            ctx.lineTo(x + size - unit * 2, y + size - unit);
+            ctx.lineTo(x + unit * 2, y + size - unit);
+            ctx.closePath();
             ctx.stroke();
             break;
         case 1:
@@ -1605,68 +1772,83 @@ function drawDigit(ctx, x, y, size, digit) {
             ctx.stroke();
             break;
         case 2:
-            ctx.moveTo(x + unit, y + size / 2);
-            ctx.lineTo(x + size - unit, y + size / 2);
-            ctx.moveTo(x + unit, y + unit);
-            ctx.lineTo(x + size - unit, y + unit);
-            ctx.lineTo(x + size - unit, y + size - unit);
-            ctx.lineTo(x + unit, y + size - unit);
+            ctx.moveTo(x + unit * 2, y + unit * 2);
+            ctx.lineTo(x + size - unit * 2, y + unit * 2);   // 上横
+            ctx.lineTo(x + size - unit * 2, y + size / 2);  // 右竖
+            ctx.lineTo(x + unit * 2, y + size / 2);         // 中横
+            ctx.lineTo(x + unit * 2, y + size - unit * 2);  // 左竖
+            ctx.lineTo(x + size - unit * 2, y + size - unit * 2); // 下横
             ctx.stroke();
             break;
         case 3:
-            ctx.moveTo(x + unit, y + unit);
-            ctx.lineTo(x + size - unit, y + unit);
-            ctx.lineTo(x + size - unit, y + size / 2);
-            ctx.moveTo(x + size - unit, y + size / 2);
-            ctx.lineTo(x + size - unit, y + size - unit);
-            ctx.moveTo(x + unit, y + size - unit);
-            ctx.lineTo(x + size - unit, y + size - unit);
+            ctx.moveTo(x + unit * 2, y + unit * 2);
+            ctx.lineTo(x + size - unit * 2, y + unit * 2);   // 上横
+            ctx.lineTo(x + size - unit * 2, y + size / 2);  // 右上竖
+            ctx.lineTo(x + unit * 2, y + size / 2);         // 中横
+            ctx.lineTo(x +  size -unit * 2, y + size / 2);  // 左下竖
+            ctx.lineTo(x + size - unit * 2, y + size -unit/ 2); // 下横
+            ctx.lineTo(x - size/12 + unit * 2, y + size -unit/ 2); // 下横
             ctx.stroke();
             break;
         case 4:
-            ctx.moveTo(x + unit, y + unit);
-            ctx.lineTo(x + unit, y + size - unit);
-            ctx.moveTo(x + unit, y + size / 2);
-            ctx.lineTo(x + size - unit, y + size / 2);
-            ctx.moveTo(x + size - unit, y + unit);
-            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.moveTo(x + unit * 2, y + unit * 2);
+            ctx.lineTo(x + unit * 2, y + unit * 2+size/2);  // 左竖
+            ctx.moveTo(x + unit * 2, y + size / 2);
+            ctx.lineTo(x + size - unit * 2, y + size / 2);  // 中横
+            ctx.moveTo(x + size - unit * 2, y + unit * 2);
+            ctx.lineTo(x + size - unit * 2, y + size - unit * 2); // 右竖
             ctx.stroke();
             break;
         case 5:
-            ctx.moveTo(x + size - unit, y + unit);
-            ctx.lineTo(x + unit, y + unit);
-            ctx.lineTo(x + unit, y + size / 2);
-            ctx.lineTo(x + size - unit, y + size / 2);
-            ctx.lineTo(x + size - unit, y + size - unit);
-            ctx.lineTo(x + unit, y + size - unit);
+            ctx.moveTo(x + size - unit * 2, y + unit * 2);
+            ctx.lineTo(x + unit * 2, y + unit * 2);         // 上横
+            ctx.lineTo(x + unit * 2, y + size / 2);         // 左竖
+            ctx.lineTo(x + size - unit * 2, y + size / 2);  // 中横
+            ctx.lineTo(x + size - unit * 2, y + size - unit * 2); // 右竖
+            ctx.lineTo(x + unit * 2, y + size - unit * 2);  // 下横
             ctx.stroke();
             break;
         case 6:
-            ctx.moveTo(x + size - unit, y + unit);
-            ctx.lineTo(x + unit, y + unit);
-            ctx.lineTo(x + unit, y + size - unit);
-            ctx.lineTo(x + size - unit, y + size - unit);
-            ctx.lineTo(x + size - unit, y + size / 2);
-            ctx.lineTo(x + unit, y + size / 2);
+            ctx.moveTo(x + size - unit * 2, y + unit * 2);
+            ctx.lineTo(x + unit * 2, y + unit * 2);         // 上横
+            ctx.lineTo(x + unit * 2, y + size - unit * 2);  // 左竖
+            ctx.lineTo(x + size - unit * 2, y + size - unit * 2); // 下横
+            ctx.lineTo(x + size - unit * 2, y + size / 2);  // 右竖
+            ctx.lineTo(x + unit * 2, y + size / 2);         // 中横
             ctx.stroke();
             break;
         case 7:
-            ctx.moveTo(x + unit, y + unit);
-            ctx.lineTo(x + size - unit, y + unit);
-            ctx.lineTo(x + size - unit, y + size - unit);
+            ctx.moveTo(x + unit * 2, y + unit * 2);
+            ctx.lineTo(x + size - unit * 2, y + unit * 2);   // 上横
+            ctx.lineTo(x + size - unit * 2, y + size - unit * 2); // 右竖
             ctx.stroke();
             break;
         case 8:
-            ctx.arc(x + size / 2, y + size / 2, size / 2 - unit, 0, Math.PI * 2);
-            ctx.moveTo(x + unit, y + size / 2);
-            ctx.lineTo(x + size - unit, y + size / 2);
+            ctx.moveTo(x + unit * 2, y + unit * 2);
+            ctx.lineTo(x + size - unit * 2, y + unit * 2);   // 上横
+            ctx.lineTo(x + size - unit * 2, y + size - unit * 2); // 右竖
+            ctx.lineTo(x + unit * 2, y + size - unit * 2);  // 下横
+            ctx.lineTo(x + unit * 2, y + unit * 2);         // 左竖
+            ctx.moveTo(x + unit * 2, y + size / 2);
+            ctx.lineTo(x + size - unit * 2, y + size / 2);  // 中横
             ctx.stroke();
             break;
         case 9:
-            ctx.arc(x + size / 2, y + size / 2, size / 2 - unit, 0, Math.PI);
-            ctx.lineTo(x + unit, y + size / 2);
-            ctx.lineTo(x + unit, y + unit);
-            ctx.lineTo(x + size - unit, y + unit);
+            // 上半部分（近似椭圆用折线模拟）
+            ctx.moveTo(x + unit * 4, y + unit * 2);
+            ctx.lineTo(x + size - unit * 4, y + unit * 2);   // 上横
+            ctx.lineTo(x + size - unit * 2, y + unit * 4);
+            ctx.lineTo(x + size - unit * 2, y + size / 2 - unit); // 右上弧边
+            ctx.lineTo(x + size - unit * 4, y + size / 2);
+            ctx.lineTo(x + unit * 4, y + size / 2);             // 中横
+            ctx.lineTo(x + unit * 2, y + size / 2 - unit);
+            ctx.lineTo(x + unit * 2, y + unit * 4);
+            ctx.closePath();
+            
+            // 右侧竖线
+            ctx.moveTo(x + size - unit * 3, y + size / 2);
+            ctx.lineTo(x + size - unit * 3, y + size - unit * 2);
+            
             ctx.stroke();
             break;
     }

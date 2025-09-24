@@ -113,14 +113,21 @@ class DecisionTree:
             right=right_subtree
         )
     
-    def train(self, features, labels):
-        """训练决策树"""
+    def train(self, features, labels, sample_weights=None):
         import numpy as np
         
-        # 将 NumPy 数组转为 Python 列表
         features = np.array(features).tolist()
         labels = np.array(labels).ravel().tolist()
         
+        # 关键修复：将 -1/1 标签映射为 0/1
+        if set(labels) == {-1, 1}:
+            labels = [0 if x == -1 else 1 for x in labels]
+            
+        # 处理权重参数
+        # if sample_weights is not None:
+        #     # 这里可以实现加权不纯度计算
+        #     print("：权重参数已接收但尚未实现")
+            
         if len(features) == 0:
             raise ValueError("训练数据不能为空")
         if len(features) != len(labels):
