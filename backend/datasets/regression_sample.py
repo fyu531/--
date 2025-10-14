@@ -47,7 +47,7 @@ def load_regression_sample():
         -0.15 * age * distance +  # 房龄和距离的交互作用（增加权重）
         np.random.normal(0, 8, n_samples)  # 减少噪声
     )
-    
+
     # 确保价格为正数
     y = np.maximum(y, 30)
     
@@ -87,7 +87,7 @@ def evaluate_dataset():
     # 评估每个模型
     for name, model in models.items():
         # 训练模型
-        model.fit(X_train_scaled, y_train)
+        model.fit(X_train_scaled, y_train)  #train()训练 
         
         # 预测
         y_pred = model.predict(X_test_scaled)

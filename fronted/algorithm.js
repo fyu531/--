@@ -84,7 +84,7 @@ async function initSelectors() {
             option.textContent = algo.name;
             algorithmSelect.appendChild(option);
         });
-        
+
         // 获取数据集列表
         const datasetsResponse = await fetch(`${API_BASE_URL}/datasets`);
         const datasetsData = await datasetsResponse.json();
@@ -96,6 +96,18 @@ async function initSelectors() {
             option.value = dataset.id;
             option.textContent = dataset.name;
             datasetSelect.appendChild(option);
+        });
+
+        // 2. 修正：获取数据集划分比例（原错误：复用了algorithmsResponse，且ID/Name错误）
+        const divisionResponse = await fetch(`${API_BASE_URL}/divisions`); // 正确请求划分比例接口
+        const divisionData = await divisionResponse.json(); // 解析划分比例数据
+       
+        const divisionSelect = document.getElementById('division_Select');
+        divisionData.divisions.forEach(division => { // 假设后端返回格式为 {divisions: [{id: "7:3", name: "训练集70%:测试集30%"}]}
+            const option = document.createElement('option');
+            option.value = division.id; // 存储比例标识（如"7:3"）
+            option.textContent = division.name; // 显示友好名称
+            divisionSelect.appendChild(option);
         });
     } catch (error) {
         console.error('初始化选择器失败:', error);
