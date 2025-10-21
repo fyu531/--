@@ -96,3 +96,5 @@ class SVM:
             },
             'kernel': self.kernel
         }
+
+

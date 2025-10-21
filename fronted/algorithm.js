@@ -99,19 +99,32 @@ async function initSelectors() {
         });
 
         // 2. 修正：获取数据集划分比例（原错误：复用了algorithmsResponse，且ID/Name错误）
-        const divisionResponse = await fetch(`${API_BASE_URL}/divisions`); // 正确请求划分比例接口
-        const divisionData = await divisionResponse.json(); // 解析划分比例数据
-       
-        const divisionSelect = document.getElementById('division_Select');
-        divisionData.divisions.forEach(division => { // 假设后端返回格式为 {divisions: [{id: "7:3", name: "训练集70%:测试集30%"}]}
+        const divisionResponse = await fetch(`${API_BASE_URL}/divisions`);
+        console.log('划分比例接口响应状态:', divisionResponse.status); // 新增日志
+        
+        const divisionData = await divisionResponse.json();
+        console.log('获取到的划分比例数据:', divisionData); // 新增日志
+        
+        const divisionSelect = document.getElementById('divisionSelect');
+        console.log('是否找到划分比例选择器:', divisionSelect !== null); // 新增日志
+        
+        // 清空并填充选项
+        divisionSelect.innerHTML = '';
+        divisionData.divisions.forEach(division => {
             const option = document.createElement('option');
-            option.value = division.id; // 存储比例标识（如"7:3"）
-            option.textContent = division.name; // 显示友好名称
+            option.value = division.id;
+            option.textContent = division.name;
             divisionSelect.appendChild(option);
+            console.log('添加选项:', division.id, division.test_size); // 新增日志
         });
+        
+        // 设置默认选中项
+        divisionSelect.value = '7:3';
+        console.log('默认选中的划分比例ID:', divisionSelect.value); // 新增日志
+        
     } catch (error) {
         console.error('初始化选择器失败:', error);
-        alert('无法连接到服务器，请确保后端服务已启动。');
+        alert('无法加载划分比例，请检查后端服务');
     }
 }
 
@@ -635,8 +648,37 @@ async function runAlgorithm(algoKey, datasetKey) {
         document.getElementById('f1').textContent = '加载中...';
         document.getElementById('mse').textContent = '加载中...';
         
-        console.log(`开始运行算法: ${algoKey}, 数据集: ${datasetKey}`);
+        // 1. 获取划分比例选择器
+        const divisionSelect = document.getElementById('divisionSelect');
+        if (!divisionSelect) {
+            alert('未找到划分比例选择器，请检查HTML');
+            return;
+        }
         
+        // 2. 获取用户选择的划分比例ID（如"7:3"）
+        const selectedDivisionId = divisionSelect.value;
+        if (!selectedDivisionId) {
+            alert('请选择数据集划分比例');
+            return;
+        }
+        
+        // 3. 请求所有划分比例选项，找到对应的test_size
+        const divisionResponse = await fetch(`${API_BASE_URL}/divisions`);
+        const divisionData = await divisionResponse.json();
+        const selectedDivision = divisionData.divisions.find(
+            div => div.id === selectedDivisionId
+        );
+        
+        if (!selectedDivision) {
+            alert('未找到选中的划分比例，请重试');
+            return;
+        }
+        const test_size = selectedDivision.test_size; // 提取test_size
+        // ------------------------------------------------------
+        
+        console.log(`开始运行算法: ${algoKey}, 数据集: ${datasetKey}, 测试集比例: ${test_size}`);
+        
+        // 发送请求时，在body中添加test_size
         const response = await fetch(`${API_BASE_URL}/train`, {
             method: 'POST',
             headers: {
@@ -644,7 +686,8 @@ async function runAlgorithm(algoKey, datasetKey) {
             },
             body: JSON.stringify({
                 algorithm: algoKey,
-                dataset: datasetKey
+                dataset: datasetKey,
+                test_size: test_size // 关键：传递test_size
             })
         });
         

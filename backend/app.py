@@ -141,7 +141,7 @@ def get_algorithms():
 def get_divisions():
     """返回数据集划分比例选项（训练集:测试集）"""
     divisions_info = [
-        {'id': '10:0', 'name': '训练集100%', 'test_size': 0.0},
+        {'id': '10:0', 'name': '训练集99%', 'test_size': 0.01},
         {'id': '9:1', 'name': '训练集90%', 'test_size': 0.1},
         {'id': '8:2', 'name': '训练集80%', 'test_size': 0.2},
         {'id': '7:3', 'name': '训练集70%', 'test_size': 0.3},
@@ -151,14 +151,11 @@ def get_divisions():
         {'id': '3:7', 'name': '训练集30%', 'test_size': 0.7},
         {'id': '2:8', 'name': '训练集20%', 'test_size': 0.8},
         {'id': '1:9', 'name': '训练集10%', 'test_size': 0.9},
-        {'id': '0:10', 'name': '训练集100%', 'test_size': 1.0},
+        {'id': '0:10', 'name': '训练集1%', 'test_size': 0.99},
     ]
     
     # 返回标准化的JSON响应
-    return jsonify({
-        'divisions': divisions_info,
-        'message': '成功获取划分比例'
-    })
+    return jsonify({'divisions': divisions_info})
 
 # API端点：获取数据集列表
 @app.route('/api/datasets', methods=['GET'])
@@ -206,12 +203,13 @@ def get_dataset(dataset_id):
 @app.route('/api/train', methods=['POST'])
 def train_model():
     data = request.json
-    
+    print(f'{data}')
     # 1. 新增：检查是否传递 test_size，默认值设为0.3（兼容旧逻辑）
     if not data or 'algorithm' not in data or 'dataset' not in data:
         return jsonify({'error': '缺少算法或数据集参数'}), 400
     # 获取前端传递的 test_size，若未传则用0.3，同时限制范围（避免无效值）
-    test_size = data.get('test_size', 0.3)
+    test_size = data.get('test_size', 0.6)
+    print(f'test_size的值：{test_size}')
     # 校验 test_size 合法性（必须在0~1之间，且为数字）
     if not isinstance(test_size, (int, float)) or test_size < 0 or test_size > 1:
         return jsonify({'error': 'test_size必须是0~1之间的数字'}), 400
@@ -224,6 +222,8 @@ def train_model():
         
     X, y, _ = datasets[dataset_id]
     
+    print(f'{test_size}')
+
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42
     )
@@ -324,7 +324,8 @@ def train_model():
 @app.route('/api/compare', methods=['POST'])
 def compare_algorithms():
     data = request.json
-    
+    print(f'{data}')
+
     # 1. 新增：检查并获取 test_size，默认0.3
     if not data or 'algorithms' not in data or 'dataset' not in data or 'metric' not in data:
         return jsonify({'error': '缺少参数'}), 400
