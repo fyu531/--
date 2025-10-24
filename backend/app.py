@@ -137,6 +137,20 @@ def get_algorithms():
     ]
     return jsonify({'algorithms': algorithms})
 
+# API端点：获取学习率选项
+@app.route('/api/learningrates', methods=['GET'])
+def get_learningrates():
+    """返回学习率选项列表"""
+    learningrates_info = [
+        {'id': '0.001', 'name': '0.001', 'value': 0.001},
+        {'id': '0.01', 'name': '0.01', 'value': 0.01},
+        {'id': '0.1', 'name': '0.1', 'value': 0.1},
+        {'id': '0.2', 'name': '0.2', 'value': 0.2},
+        {'id': '0.3', 'name': '0.3', 'value': 0.3}
+    ]
+    return jsonify({'learningrates': learningrates_info})
+
+
 @app.route('/api/divisions', methods=['GET'])
 def get_divisions():
     """返回数据集划分比例选项（训练集:测试集）"""
@@ -200,19 +214,26 @@ def get_dataset(dataset_id):
     })
 
 # API端点：训练模型并返回结果
+# API端点：训练模型并返回结果
 @app.route('/api/train', methods=['POST'])
 def train_model():
     data = request.json
     print(f'{data}')
-    # 1. 新增：检查是否传递 test_size，默认值设为0.3（兼容旧逻辑）
+    # 1. 检查必填参数
     if not data or 'algorithm' not in data or 'dataset' not in data:
         return jsonify({'error': '缺少算法或数据集参数'}), 400
-    # 获取前端传递的 test_size，若未传则用0.3，同时限制范围（避免无效值）
-    test_size = data.get('test_size', 0.6)
+    
+    # 2. 处理数据集划分比例
+    test_size = data.get('test_size', 0.3)
     print(f'test_size的值：{test_size}')
-    # 校验 test_size 合法性（必须在0~1之间，且为数字）
     if not isinstance(test_size, (int, float)) or test_size < 0 or test_size > 1:
         return jsonify({'error': 'test_size必须是0~1之间的数字'}), 400
+    
+    # 3. 新增：处理学习率参数（默认值设为0.01，兼容无学习率的算法）
+    learning_rate = data.get('learning_rate', 0.01)
+    print(f'learning_rate的值：{learning_rate}')
+    if not isinstance(learning_rate, (int, float)) or learning_rate <= 0:
+        return jsonify({'error': 'learning_rate必须是大于0的数字'}), 400
         
     algorithm_id = data['algorithm']
     dataset_id = data['dataset']
@@ -222,8 +243,6 @@ def train_model():
         
     X, y, _ = datasets[dataset_id]
     
-    print(f'{test_size}')
-
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42
     )
@@ -250,11 +269,13 @@ def train_model():
             task_type = 'classification'
             
         elif algorithm_id == 'linear_regression':
-            model = algos.LinearRegression()
+            # 传递学习率参数给线性回归算法
+            model = algos.LinearRegression(learning_rate=learning_rate)
             task_type = 'regression'
             
         elif algorithm_id == 'logistic_regression':
-            model = algos.LogisticRegression()
+            # 传递学习率参数给逻辑回归算法
+            model = algos.LogisticRegression(learning_rate=learning_rate)
             task_type = 'classification'
             
         elif algorithm_id == 'adaboost':

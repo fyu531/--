@@ -98,6 +98,20 @@ async function initSelectors() {
             datasetSelect.appendChild(option);
         });
 
+        // // 获取数据集列表
+        // const learningrateResponse = await fetch(`${API_BASE_URL}/learningrate`);
+        // const learningrateData = await datasetsResponse.json();
+        
+        // // 填充数据集选择器
+        // const learningrateSelect = document.getElementById('learningrateSelect');
+        // learningrateData.datasets.forEach(dataset => {
+        //     const option = document.createElement('option');
+        //     option.value = dataset.id;
+        //     option.textContent = dataset.name;
+        //     learningrateSelect.appendChild(option);
+        // });
+
+
         // 2. 修正：获取数据集划分比例（原错误：复用了algorithmsResponse，且ID/Name错误）
         const divisionResponse = await fetch(`${API_BASE_URL}/divisions`);
         console.log('划分比例接口响应状态:', divisionResponse.status); // 新增日志
@@ -122,6 +136,34 @@ async function initSelectors() {
         divisionSelect.value = '7:3';
         console.log('默认选中的划分比例ID:', divisionSelect.value); // 新增日志
         
+        try {
+            const learningRateResponse = await fetch(`${API_BASE_URL}/learningrates`);
+            console.log('学习率接口响应状态:', learningRateResponse.status);
+            
+            const learningRateData = await learningRateResponse.json();
+            console.log('获取到的学习率数据:', learningRateData);
+            
+            const learningrateSelect = document.getElementById('learningrateSelect');
+            console.log('是否找到学习率选择器:', learningrateSelect !== null);
+            
+            // 清空并填充选项
+            learningrateSelect.innerHTML = '';
+            learningRateData.learningrates.forEach(lr => {
+                const option = document.createElement('option');
+                option.value = lr.id; // 存储标识（如"0.001"）
+                option.textContent = lr.name; // 显示文本（如"0.001"）
+                learningrateSelect.appendChild(option);
+                console.log('添加学习率选项:', lr.id, lr.value);
+            });
+            
+            // 设置默认选中项（例如0.01）
+            learningrateSelect.value = '0.01';
+            console.log('默认选中的学习率ID:', learningrateSelect.value);
+        } catch (lrError) {
+            console.error('初始化学习率选择器失败:', lrError);
+            alert('无法加载学习率选项，请检查后端服务');
+        }
+
     } catch (error) {
         console.error('初始化选择器失败:', error);
         alert('无法加载划分比例，请检查后端服务');
@@ -678,7 +720,27 @@ async function runAlgorithm(algoKey, datasetKey) {
         
         console.log(`开始运行算法: ${algoKey}, 数据集: ${datasetKey}, 测试集比例: ${test_size}`);
         
-        // 发送请求时，在body中添加test_size
+        // 2. 新增：学习率参数处理
+        const learningrateSelect = document.getElementById('learningrateSelect');
+        if (!learningrateSelect || !learningrateSelect.value) {
+            alert('请选择学习率大小');
+            return;
+        }
+        // 请求学习率列表，获取对应的数值
+        const lrResponse = await fetch(`${API_BASE_URL}/learningrates`);
+        const lrData = await lrResponse.json();
+        const selectedLR = lrData.learningrates.find(lr => lr.id === learningrateSelect.value);
+        if (!selectedLR) {
+            alert('未找到选中的学习率，请重试');
+            return;
+        }
+        const learning_rate = selectedLR.value; // 提取学习率数值
+        console.log(`选中的学习率数值: ${learning_rate}`);
+        
+        // 输出完整参数信息
+        console.log(`开始运行算法: ${algoKey}, 数据集: ${datasetKey}, 测试集比例: ${test_size}, 学习率: ${learning_rate}`);
+        
+        // 3. 发送请求时添加学习率参数
         const response = await fetch(`${API_BASE_URL}/train`, {
             method: 'POST',
             headers: {
@@ -687,7 +749,8 @@ async function runAlgorithm(algoKey, datasetKey) {
             body: JSON.stringify({
                 algorithm: algoKey,
                 dataset: datasetKey,
-                test_size: test_size // 关键：传递test_size
+                test_size: test_size,
+                learning_rate: learning_rate // 新增：传递学习率参数
             })
         });
         
